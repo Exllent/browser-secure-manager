@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -541,14 +542,123 @@ def _build_user_agent_patch(config: FingerprintConfig) -> str:
     """
 
 
+def _stable_noise_seed(*parts: str) -> int:
+    digest = hashlib.sha256("\n".join(parts).encode("utf-8")).digest()
+    return int.from_bytes(digest[:4], "big") or 1
+
+
 def _build_webgl_patch(config: FingerprintConfig) -> str:
     vendor = json.dumps(config.webgl_vendor or "Google Inc.")
     renderer = json.dumps(config.webgl_renderer or "ANGLE")
+    noise_seed = _stable_noise_seed(
+        config.user_agent or "",
+        config.platform or "",
+        config.webgl_vendor or "",
+        config.webgl_renderer or "",
+    )
     return f"""
+    const secureBrowserWebGLCanvases = new WeakMap();
+    const secureBrowserWebGLNoiseSeed = {noise_seed};
     const fingerprintWebGLDebugInfo = {{
         UNMASKED_VENDOR_WEBGL: 37445,
         UNMASKED_RENDERER_WEBGL: 37446
     }};
+    const secureBrowserWeakWebGLNoise = (pixels, width, height) => {{
+        if (!pixels || typeof pixels.length !== 'number') return pixels;
+        const pixelCount = Math.max(1, Number(width || 0) * Number(height || 0));
+        const step = Math.max(64, Math.floor(pixelCount / 96)) * 4;
+        let state = secureBrowserWebGLNoiseSeed >>> 0;
+        for (let index = 0; index < pixels.length; index += step) {{
+            state = (state * 1664525 + 1013904223) >>> 0;
+            const channel = index + (state % 3);
+            if (channel < pixels.length) {{
+                const delta = ((state >>> 8) % 3) - 1;
+                pixels[channel] = Math.max(0, Math.min(255, pixels[channel] + delta));
+            }}
+        }}
+        return pixels;
+    }};
+
+    const originalCanvasGetContext = HTMLCanvasElement.prototype.getContext;
+    if (!HTMLCanvasElement.prototype.__secureBrowserWebGLGetContextPatched) {{
+        Object.defineProperty(HTMLCanvasElement.prototype, '__secureBrowserWebGLGetContextPatched', {{ value: true }});
+        HTMLCanvasElement.prototype.getContext = new Proxy(originalCanvasGetContext, {{
+            apply(target, thisArg, args) {{
+                const context = Reflect.apply(target, thisArg, args);
+                const contextType = String(args[0] || '').toLowerCase();
+                if (context && (contextType === 'webgl' || contextType === 'experimental-webgl' || contextType === 'webgl2')) {{
+                    secureBrowserWebGLCanvases.set(thisArg, context);
+                }}
+                return context;
+            }}
+        }});
+    }}
+
+    const noisyWebGLCanvasDataURL = (canvas, type, quality) => {{
+        const context = secureBrowserWebGLCanvases.get(canvas);
+        if (!context) return null;
+
+        const width = context.drawingBufferWidth || canvas.width;
+        const height = context.drawingBufferHeight || canvas.height;
+        if (!width || !height) return null;
+
+        const pixels = new Uint8Array(width * height * 4);
+        context.readPixels(0, 0, width, height, context.RGBA, context.UNSIGNED_BYTE, pixels);
+
+        const output = document.createElement('canvas');
+        output.width = width;
+        output.height = height;
+        const outputContext = output.getContext('2d');
+        if (!outputContext) return null;
+
+        const imageData = outputContext.createImageData(width, height);
+        const rowSize = width * 4;
+        for (let row = 0; row < height; row += 1) {{
+            const sourceStart = (height - row - 1) * rowSize;
+            const targetStart = row * rowSize;
+            imageData.data.set(pixels.subarray(sourceStart, sourceStart + rowSize), targetStart);
+        }}
+        outputContext.putImageData(imageData, 0, 0);
+        return output.toDataURL(type, quality);
+    }};
+
+    if (!HTMLCanvasElement.prototype.__secureBrowserWebGLToDataURLPatched) {{
+        Object.defineProperty(HTMLCanvasElement.prototype, '__secureBrowserWebGLToDataURLPatched', {{ value: true }});
+        const originalWebGLToDataURL = HTMLCanvasElement.prototype.toDataURL;
+        HTMLCanvasElement.prototype.toDataURL = new Proxy(originalWebGLToDataURL, {{
+            apply(target, thisArg, args) {{
+                try {{
+                    const dataUrl = noisyWebGLCanvasDataURL(thisArg, args[0], args[1]);
+                    if (dataUrl) return dataUrl;
+                }} catch (error) {{}}
+                return Reflect.apply(target, thisArg, args);
+            }}
+        }});
+    }}
+
+    if (!HTMLCanvasElement.prototype.__secureBrowserWebGLToBlobPatched && HTMLCanvasElement.prototype.toBlob) {{
+        Object.defineProperty(HTMLCanvasElement.prototype, '__secureBrowserWebGLToBlobPatched', {{ value: true }});
+        const originalWebGLToBlob = HTMLCanvasElement.prototype.toBlob;
+        HTMLCanvasElement.prototype.toBlob = new Proxy(originalWebGLToBlob, {{
+            apply(target, thisArg, args) {{
+                const callback = args[0];
+                if (typeof callback === 'function') {{
+                    try {{
+                        const dataUrl = noisyWebGLCanvasDataURL(thisArg, args[1], args[2]);
+                        if (dataUrl) {{
+                            fetch(dataUrl)
+                                .then((response) => response.blob())
+                                .then((blob) => callback(blob))
+                                .catch(() => Reflect.apply(target, thisArg, args));
+                            return undefined;
+                        }}
+                    }} catch (error) {{}}
+                }}
+                return Reflect.apply(target, thisArg, args);
+            }}
+        }});
+    }}
+
     const patchWebGLPrototype = (prototype) => {{
         if (!prototype || prototype.__secureBrowserWebGLPatched) return;
         Object.defineProperty(prototype, '__secureBrowserWebGLPatched', {{ value: true }});
@@ -581,6 +691,18 @@ def _build_webgl_patch(config: FingerprintConfig) -> str:
                 return result.includes('WEBGL_debug_renderer_info')
                     ? result
                     : [...result, 'WEBGL_debug_renderer_info'];
+            }}
+        }});
+
+        const originalReadPixels = prototype.readPixels;
+        prototype.readPixels = new Proxy(originalReadPixels, {{
+            apply(target, thisArg, args) {{
+                const result = Reflect.apply(target, thisArg, args);
+                const pixels = args[6];
+                if (pixels && ArrayBuffer.isView(pixels)) {{
+                    secureBrowserWeakWebGLNoise(pixels, args[2], args[3]);
+                }}
+                return result;
             }}
         }});
     }};
@@ -664,15 +786,20 @@ def _build_font_patch(config: FingerprintConfig) -> str:
                 "Calibri",
                 "Cambria",
                 "Courier New",
+                "Geneva",
                 "DejaVu Sans",
+                "DejaVu Sans Mono",
                 "DejaVu Serif",
+                "Georgia",
                 "Helvetica",
                 "Hiragino Sans",
                 "Liberation Sans",
+                "Liberation Serif",
                 "Menlo",
                 "Monaco",
                 "Noto Sans",
                 "Osaka",
+                "Roboto",
                 "Segoe UI",
                 "Tahoma",
                 "Times",
@@ -690,6 +817,15 @@ def _build_font_patch(config: FingerprintConfig) -> str:
         .split(',')
         .map((part) => part.trim().replace(/^['"]|['"]$/g, ''))
         .filter(Boolean);
+    const familiesFromElement = (element) => {{
+        try {{
+            const inlineFamily = element && element.style && element.style.fontFamily;
+            const computedFamily = window.getComputedStyle ? getComputedStyle(element).fontFamily : '';
+            return normalizeFontFamily(inlineFamily || computedFamily);
+        }} catch (error) {{
+            return [];
+        }}
+    }};
     const profileHasFont = (families) => families.some((family) => secureBrowserFonts.has(family));
     const hasMaskedSystemFont = (families) => families.some((family) =>
         secureBrowserKnownFonts.has(family) && !secureBrowserFonts.has(family)
@@ -698,10 +834,47 @@ def _build_font_patch(config: FingerprintConfig) -> str:
         let result = String(fontValue || '');
         for (const family of secureBrowserKnownFonts) {{
             if (secureBrowserFonts.has(family)) continue;
-            const escaped = family.replace(/[.*+?^${{}}()|[\\]\\\\]/g, '\\\\$&');
-            result = result.replace(new RegExp(`(["']?)${{escaped}}\\\\1`, 'g'), 'sans-serif');
+            result = result.split(family).join('sans-serif');
         }}
         return result;
+    }};
+    const fontSignal = (families) => {{
+        const profileFamily = families.find((family) => secureBrowserFonts.has(family));
+        if (!profileFamily) return 0;
+        let total = 0;
+        for (const char of profileFamily) total += char.charCodeAt(0);
+        return (total % 9) + 3;
+    }};
+    const withMaskedFontsReplaced = (element, callback) => {{
+        const families = familiesFromElement(element);
+        if (!hasMaskedSystemFont(families)) return callback();
+
+        const previousInlineFont = element.style.font;
+        const previousInlineFamily = element.style.fontFamily;
+        try {{
+            if (previousInlineFont) element.style.font = replaceMaskedFonts(previousInlineFont);
+            element.style.fontFamily = replaceMaskedFonts(previousInlineFamily || getComputedStyle(element).fontFamily);
+            return callback();
+        }} finally {{
+            element.style.font = previousInlineFont;
+            element.style.fontFamily = previousInlineFamily;
+        }}
+    }};
+    const buildRect = (rect, widthDelta, heightDelta) => {{
+        const nextWidth = Math.max(0, rect.width + widthDelta);
+        const nextHeight = Math.max(0, rect.height + heightDelta);
+        const data = {{
+            x: rect.x,
+            y: rect.y,
+            width: nextWidth,
+            height: nextHeight,
+            top: rect.top,
+            left: rect.left,
+            right: rect.left + nextWidth,
+            bottom: rect.top + nextHeight
+        }};
+        if (window.DOMRect && DOMRect.fromRect) return DOMRect.fromRect(data);
+        return data;
     }};
 
     if (document.fonts && document.fonts.check) {{
@@ -745,6 +918,59 @@ def _build_font_patch(config: FingerprintConfig) -> str:
                         return Reflect.get(metricTarget, property, receiver);
                     }}
                 }});
+            }}
+        }});
+    }}
+
+    const patchElementMetric = (prototype, property, deltaAxis) => {{
+        if (!prototype) return;
+        const descriptor = Object.getOwnPropertyDescriptor(prototype, property);
+        if (!descriptor || !descriptor.get) return;
+        Object.defineProperty(prototype, property, {{
+            get() {{
+                const families = familiesFromElement(this);
+                const readMetric = () => descriptor.get.call(this);
+                if (hasMaskedSystemFont(families)) return withMaskedFontsReplaced(this, readMetric);
+                const value = readMetric();
+                const signal = fontSignal(families);
+                if (!signal) return value;
+                return value + (deltaAxis === 'width' ? signal : Math.max(1, Math.floor(signal / 2)));
+            }},
+            configurable: true
+        }});
+    }};
+
+    patchElementMetric(HTMLElement.prototype, 'offsetWidth', 'width');
+    patchElementMetric(HTMLElement.prototype, 'offsetHeight', 'height');
+
+    if (window.Element && Element.prototype.getBoundingClientRect) {{
+        const originalGetBoundingClientRect = Element.prototype.getBoundingClientRect;
+        Element.prototype.getBoundingClientRect = new Proxy(originalGetBoundingClientRect, {{
+            apply(target, thisArg, args) {{
+                const families = familiesFromElement(thisArg);
+                const readRect = () => Reflect.apply(target, thisArg, args);
+                if (hasMaskedSystemFont(families)) return withMaskedFontsReplaced(thisArg, readRect);
+                const rect = readRect();
+                const signal = fontSignal(families);
+                if (!signal) return rect;
+                return buildRect(rect, signal, Math.max(1, Math.floor(signal / 2)));
+            }}
+        }});
+    }}
+
+    if (window.Element && Element.prototype.getClientRects) {{
+        const originalGetClientRects = Element.prototype.getClientRects;
+        Element.prototype.getClientRects = new Proxy(originalGetClientRects, {{
+            apply(target, thisArg, args) {{
+                const families = familiesFromElement(thisArg);
+                const readRects = () => Reflect.apply(target, thisArg, args);
+                if (hasMaskedSystemFont(families)) return withMaskedFontsReplaced(thisArg, readRects);
+                const rects = readRects();
+                const signal = fontSignal(families);
+                if (!signal) return rects;
+                return Array.from(rects).map((rect) =>
+                    buildRect(rect, signal, Math.max(1, Math.floor(signal / 2)))
+                );
             }}
         }});
     }}

@@ -32,9 +32,16 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
         self.assertIn("HTMLCanvasElement.prototype.toBlob", script)
         self.assertIn("WEBGL_debug_renderer_info", script)
         self.assertIn("WebGLRenderingContext", script)
+        self.assertIn("secureBrowserWeakWebGLNoise", script)
+        self.assertIn("prototype.readPixels", script)
+        self.assertIn("noisyWebGLCanvasDataURL", script)
         self.assertIn("window.queryLocalFonts", script)
         self.assertIn("document.fonts.check", script)
         self.assertIn("CanvasRenderingContext2D.prototype.measureText", script)
+        self.assertIn("HTMLElement.prototype, 'offsetWidth'", script)
+        self.assertIn("HTMLElement.prototype, 'offsetHeight'", script)
+        self.assertIn("Element.prototype.getBoundingClientRect", script)
+        self.assertIn("Element.prototype.getClientRects", script)
 
     def test_script_contains_client_hints_patch_for_macos_fingerprint(self) -> None:
         config = FingerprintConfig(
