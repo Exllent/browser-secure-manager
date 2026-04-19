@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import logging
+import json
 import sqlite3
 from pathlib import Path
 import re
 from typing import Iterable
 
 from models.browser_config import BrowserConfig
+from models.fingerprint_config import FingerprintConfig
+from models.fingerprint_profile import FingerprintProfile
 from models.proxy_config import ProxyConfig
 from models.session_entry import SessionEntry
 
@@ -31,6 +34,7 @@ def _row_to_session(row: sqlite3.Row) -> SessionEntry:
         browser=row["browser"],
         profile_path=row["profile_path"],
         proxy_id=row["proxy_id"],
+        fingerprint_id=row["fingerprint_id"],
         proxy_label=row["proxy_label"],
         custom_user_agent=row["custom_user_agent"],
         notes=row["notes"],
@@ -64,6 +68,32 @@ def _row_to_proxy_config(row: sqlite3.Row) -> ProxyConfig:
     )
 
 
+def _row_to_fingerprint_profile(row: sqlite3.Row) -> FingerprintProfile:
+    return FingerprintProfile(
+        id=row["id"],
+        name=row["name"],
+        config=_fingerprint_config_from_json(row["config_json"]),
+        enabled=bool(row["enabled"]),
+    )
+
+
+def _fingerprint_config_from_json(config_json: str) -> FingerprintConfig:
+    try:
+        data = json.loads(config_json)
+    except json.JSONDecodeError:
+        logger.exception("Invalid fingerprint config JSON")
+        return FingerprintConfig()
+
+    if not isinstance(data, dict):
+        return FingerprintConfig()
+
+    try:
+        return FingerprintConfig.from_dict(data)
+    except TypeError:
+        logger.exception("Invalid fingerprint config fields")
+        return FingerprintConfig()
+
+
 def default_profile_path(session_id: int) -> str:
     return str(PROFILES_DIR / f"session_{session_id}")
 
@@ -89,6 +119,7 @@ def init_db() -> None:
                 browser TEXT NOT NULL,
                 profile_path TEXT NOT NULL,
                 proxy_id INTEGER,
+                fingerprint_id INTEGER,
                 proxy_label TEXT DEFAULT '',
                 custom_user_agent TEXT DEFAULT '',
                 notes TEXT DEFAULT '',
@@ -128,6 +159,16 @@ def init_db() -> None:
         )
         connection.execute(
             """
+            CREATE TABLE IF NOT EXISTS fingerprint_profiles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                config_json TEXT NOT NULL,
+                enabled INTEGER DEFAULT 1
+            )
+            """
+        )
+        connection.execute(
+            """
             CREATE TABLE IF NOT EXISTS app_settings (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL
@@ -135,6 +176,7 @@ def init_db() -> None:
             """
         )
         _seed_default_browser_configs(connection)
+        _remove_unsupported_browser_configs(connection)
 
         count = connection.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
         if count == 0:
@@ -152,21 +194,6 @@ def _seed_default_browser_configs(connection: sqlite3.Connection) -> None:
             browser_type="chromium",
             executable_path="",
         ),
-        BrowserConfig(
-            id=None,
-            key="firefox",
-            display_name="Firefox",
-            browser_type="firefox",
-            executable_path="",
-        ),
-        BrowserConfig(
-            id=None,
-            key="safari",
-            display_name="Safari",
-            browser_type="safari",
-            executable_path="",
-            enabled=False,
-        ),
     ):
         existing = connection.execute(
             "SELECT id FROM browser_configs WHERE key = ?",
@@ -176,6 +203,19 @@ def _seed_default_browser_configs(connection: sqlite3.Connection) -> None:
             upsert_browser_config(config, connection=connection)
 
 
+def _remove_unsupported_browser_configs(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        "DELETE FROM browser_configs WHERE lower(browser_type) != 'chromium'"
+    )
+    connection.execute(
+        """
+        UPDATE sessions
+        SET browser = 'chrome'
+        WHERE browser NOT IN (SELECT key FROM browser_configs)
+        """
+    )
+
+
 def _ensure_session_columns(connection: sqlite3.Connection) -> None:
     columns = {
         row["name"]
@@ -183,6 +223,8 @@ def _ensure_session_columns(connection: sqlite3.Connection) -> None:
     }
     if "proxy_id" not in columns:
         connection.execute("ALTER TABLE sessions ADD COLUMN proxy_id INTEGER")
+    if "fingerprint_id" not in columns:
+        connection.execute("ALTER TABLE sessions ADD COLUMN fingerprint_id INTEGER")
     if "custom_user_agent" not in columns:
         connection.execute(
             "ALTER TABLE sessions ADD COLUMN custom_user_agent TEXT DEFAULT ''"
@@ -209,20 +251,10 @@ def _demo_sessions() -> Iterable[SessionEntry]:
             browser="chrome",
             profile_path="",
             proxy_id=None,
+            fingerprint_id=None,
             proxy_label="local profile",
             custom_user_agent="",
             notes="Demo Chrome session with its own browser profile.",
-        ),
-        SessionEntry(
-            id=None,
-            name="Firefox demo",
-            url="https://www.mozilla.org",
-            browser="firefox",
-            profile_path="",
-            proxy_id=None,
-            proxy_label="local profile",
-            custom_user_agent="",
-            notes="Demo Firefox session with its own browser profile.",
         ),
     )
 
@@ -232,13 +264,101 @@ def get_all_sessions() -> list[SessionEntry]:
         rows = connection.execute(
             """
             SELECT id, name, url, browser, profile_path, proxy_id, proxy_label,
-                   custom_user_agent, notes,
+                   fingerprint_id, custom_user_agent, notes,
                    window_width, window_height, status
             FROM sessions
             ORDER BY id
             """
         ).fetchall()
     return [_row_to_session(row) for row in rows]
+
+
+def get_fingerprint_profiles(*, enabled_only: bool = False) -> list[FingerprintProfile]:
+    where = "WHERE enabled = 1" if enabled_only else ""
+    with _connect() as connection:
+        rows = connection.execute(
+            f"""
+            SELECT id, name, config_json, enabled
+            FROM fingerprint_profiles
+            {where}
+            ORDER BY name COLLATE NOCASE, id
+            """
+        ).fetchall()
+    return [_row_to_fingerprint_profile(row) for row in rows]
+
+
+def get_fingerprint_profile(fingerprint_id: int | None) -> FingerprintProfile | None:
+    if fingerprint_id is None:
+        return None
+    with _connect() as connection:
+        row = connection.execute(
+            """
+            SELECT id, name, config_json, enabled
+            FROM fingerprint_profiles
+            WHERE id = ?
+            """,
+            (fingerprint_id,),
+        ).fetchone()
+    return _row_to_fingerprint_profile(row) if row else None
+
+
+def upsert_fingerprint_profile(
+    profile: FingerprintProfile,
+    *,
+    connection: sqlite3.Connection | None = None,
+) -> FingerprintProfile:
+    owns_connection = connection is None
+    active_connection = connection or _connect()
+    name = profile.display_name()
+    errors = profile.config.validate()
+    if errors:
+        raise ValueError("; ".join(errors))
+    config_json = json.dumps(profile.config.to_dict(), ensure_ascii=False, sort_keys=True)
+
+    try:
+        if profile.id is None:
+            cursor = active_connection.execute(
+                """
+                INSERT INTO fingerprint_profiles (name, config_json, enabled)
+                VALUES (?, ?, ?)
+                """,
+                (name, config_json, int(profile.enabled)),
+            )
+            profile_id = int(cursor.lastrowid)
+        else:
+            active_connection.execute(
+                """
+                UPDATE fingerprint_profiles
+                SET name = ?,
+                    config_json = ?,
+                    enabled = ?
+                WHERE id = ?
+                """,
+                (name, config_json, int(profile.enabled), profile.id),
+            )
+            profile_id = profile.id
+
+        if owns_connection:
+            active_connection.commit()
+    finally:
+        if owns_connection:
+            active_connection.close()
+
+    return FingerprintProfile(
+        id=profile_id,
+        name=name,
+        config=profile.config,
+        enabled=profile.enabled,
+    )
+
+
+def delete_fingerprint_profile(fingerprint_id: int) -> None:
+    with _connect() as connection:
+        connection.execute("DELETE FROM fingerprint_profiles WHERE id = ?", (fingerprint_id,))
+        connection.execute(
+            "UPDATE sessions SET fingerprint_id = NULL WHERE fingerprint_id = ?",
+            (fingerprint_id,),
+        )
 
 
 def get_proxy_configs(*, enabled_only: bool = False) -> list[ProxyConfig]:
@@ -465,10 +585,11 @@ def create_session(
         cursor = active_connection.execute(
             """
             INSERT INTO sessions (
-                name, url, browser, profile_path, proxy_id, proxy_label, custom_user_agent, notes,
+                name, url, browser, profile_path, proxy_id, fingerprint_id,
+                proxy_label, custom_user_agent, notes,
                 window_width, window_height, status
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 session.name,
@@ -476,6 +597,7 @@ def create_session(
                 session.browser.strip() or "chrome",
                 session.profile_path.strip(),
                 session.proxy_id,
+                session.fingerprint_id,
                 session.proxy_label,
                 session.custom_user_agent,
                 session.notes,
@@ -502,6 +624,7 @@ def create_session(
             browser=session.browser.strip() or "chrome",
             profile_path=profile_path,
             proxy_id=session.proxy_id,
+            fingerprint_id=session.fingerprint_id,
             proxy_label=session.proxy_label,
             custom_user_agent=session.custom_user_agent,
             notes=session.notes,
@@ -530,6 +653,7 @@ def update_session(session: SessionEntry) -> SessionEntry:
                 browser = ?,
                 profile_path = ?,
                 proxy_id = ?,
+                fingerprint_id = ?,
                 proxy_label = ?,
                 custom_user_agent = ?,
                 notes = ?,
@@ -544,6 +668,7 @@ def update_session(session: SessionEntry) -> SessionEntry:
                 session.browser.strip() or "chrome",
                 profile_path,
                 session.proxy_id,
+                session.fingerprint_id,
                 session.proxy_label,
                 session.custom_user_agent,
                 session.notes,

@@ -55,6 +55,7 @@ class SessionRowWidget(QWidget):
         self._browser = session.browser
         self._profile_path = session.profile_path
         self._proxy_id = session.proxy_id
+        self._fingerprint_id = session.fingerprint_id
         self._proxy_label = session.proxy_label
         self._custom_user_agent = session.custom_user_agent
         self._notes = session.notes
@@ -135,6 +136,7 @@ class SessionRowWidget(QWidget):
             browser=self._browser.strip() or "chrome",
             profile_path=self._profile_path.strip(),
             proxy_id=self._proxy_id,
+            fingerprint_id=self._fingerprint_id,
             proxy_label=self._proxy_label.strip(),
             custom_user_agent=self._custom_user_agent.strip(),
             notes=self._notes.strip(),
@@ -150,6 +152,7 @@ class SessionRowWidget(QWidget):
         self._browser = session.browser
         self._profile_path = session.profile_path
         self._proxy_id = session.proxy_id
+        self._fingerprint_id = session.fingerprint_id
         self._proxy_label = session.proxy_label
         self._custom_user_agent = session.custom_user_agent
         self._notes = session.notes
@@ -191,6 +194,7 @@ class SessionRowWidget(QWidget):
         self._browser = updated.browser
         self._profile_path = updated.profile_path
         self._proxy_id = updated.proxy_id
+        self._fingerprint_id = updated.fingerprint_id
         self._proxy_label = updated.proxy_label
         self._custom_user_agent = updated.custom_user_agent
         self._notes = updated.notes
@@ -224,12 +228,17 @@ class SessionSettingsDialog(QDialog):
         self.proxy_combo = QComboBox()
         self._load_proxies(session.proxy_id)
 
+        self.fingerprint_combo = QComboBox()
+        self._load_fingerprints(session.fingerprint_id)
+
         self.proxy_label_edit = QLineEdit(session.proxy_label)
         self.proxy_label_edit.setPlaceholderText(_("Proxy note"))
 
         self.user_agent_edit = QTextEdit(session.custom_user_agent)
         self.user_agent_edit.setPlaceholderText(_("Leave empty to use browser default User-Agent"))
         self.user_agent_edit.setMinimumHeight(80)
+        self.user_agent_note = QLabel(_("When a fingerprint is selected, its User-Agent has priority."))
+        self.user_agent_note.setWordWrap(True)
 
         self.notes_edit = QTextEdit(session.notes)
         self.notes_edit.setPlaceholderText(_("Comment"))
@@ -255,6 +264,7 @@ class SessionSettingsDialog(QDialog):
         self.general_button = QPushButton(_("General"))
         self.profile_button = QPushButton(_("Profile"))
         self.proxy_button = QPushButton(_("Proxy"))
+        self.fingerprint_button = QPushButton(_("Fingerprint"))
         self.window_button = QPushButton(_("Window"))
         self.user_agent_button = QPushButton(_("User-Agent"))
         self.notes_button = QPushButton(_("Notes"))
@@ -262,6 +272,7 @@ class SessionSettingsDialog(QDialog):
             self.general_button,
             self.profile_button,
             self.proxy_button,
+            self.fingerprint_button,
             self.window_button,
             self.user_agent_button,
             self.notes_button,
@@ -273,6 +284,7 @@ class SessionSettingsDialog(QDialog):
         self.general_page = self._build_general_page()
         self.profile_page = self._build_profile_page()
         self.proxy_page = self._build_proxy_page()
+        self.fingerprint_page = self._build_fingerprint_page()
         self.window_page = self._build_window_page()
         self.user_agent_page = self._build_user_agent_page()
         self.notes_page = self._build_notes_page()
@@ -280,6 +292,7 @@ class SessionSettingsDialog(QDialog):
             self.general_page,
             self.profile_page,
             self.proxy_page,
+            self.fingerprint_page,
             self.window_page,
             self.user_agent_page,
             self.notes_page,
@@ -289,6 +302,7 @@ class SessionSettingsDialog(QDialog):
         self.general_button.clicked.connect(lambda: self.stack.setCurrentWidget(self.general_page))
         self.profile_button.clicked.connect(lambda: self.stack.setCurrentWidget(self.profile_page))
         self.proxy_button.clicked.connect(lambda: self.stack.setCurrentWidget(self.proxy_page))
+        self.fingerprint_button.clicked.connect(lambda: self.stack.setCurrentWidget(self.fingerprint_page))
         self.window_button.clicked.connect(lambda: self.stack.setCurrentWidget(self.window_page))
         self.user_agent_button.clicked.connect(lambda: self.stack.setCurrentWidget(self.user_agent_page))
         self.notes_button.clicked.connect(lambda: self.stack.setCurrentWidget(self.notes_page))
@@ -324,6 +338,19 @@ class SessionSettingsDialog(QDialog):
         index = self.proxy_combo.findData(selected_proxy_id)
         self.proxy_combo.setCurrentIndex(max(index, 0))
 
+    def _load_fingerprints(self, selected_fingerprint_id: int | None) -> None:
+        self.fingerprint_combo.clear()
+        self.fingerprint_combo.addItem(_("No fingerprint"), None)
+        for profile in self.app_service.get_fingerprint_profiles(enabled_only=True):
+            self.fingerprint_combo.addItem(profile.display_name(), profile.id)
+
+        if selected_fingerprint_id is None:
+            self.fingerprint_combo.setCurrentIndex(0)
+            return
+
+        index = self.fingerprint_combo.findData(selected_fingerprint_id)
+        self.fingerprint_combo.setCurrentIndex(max(index, 0))
+
     def _scroll_page(self, content: QWidget) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
@@ -353,6 +380,15 @@ class SessionSettingsDialog(QDialog):
         form.addRow(_("Proxy note"), self.proxy_label_edit)
         return self._scroll_page(content)
 
+    def _build_fingerprint_page(self) -> QWidget:
+        content = QWidget()
+        form = QFormLayout(content)
+        form.addRow(_("Selected fingerprint"), self.fingerprint_combo)
+        note = QLabel(_("Create and edit fingerprints in Application settings."))
+        note.setWordWrap(True)
+        form.addRow("", note)
+        return self._scroll_page(content)
+
     def _build_window_page(self) -> QWidget:
         content = QWidget()
         form = QFormLayout(content)
@@ -364,6 +400,7 @@ class SessionSettingsDialog(QDialog):
         content = QWidget()
         form = QFormLayout(content)
         form.addRow(_("Custom User-Agent"), self.user_agent_edit)
+        form.addRow("", self.user_agent_note)
         return self._scroll_page(content)
 
     def _build_notes_page(self) -> QWidget:
@@ -380,6 +417,7 @@ class SessionSettingsDialog(QDialog):
             browser=str(self.browser_combo.currentData() or "chrome"),
             profile_path=self.profile_path_edit.text().strip(),
             proxy_id=self.proxy_combo.currentData(),
+            fingerprint_id=self.fingerprint_combo.currentData(),
             proxy_label=self.proxy_label_edit.text().strip(),
             custom_user_agent=self.user_agent_edit.toPlainText().strip(),
             notes=self.notes_edit.toPlainText().strip(),

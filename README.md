@@ -24,7 +24,7 @@ The supported browser behavior is limited to regular launches with separate brow
 - Session list with per-session settings.
 - Separate profile path per browser session.
 - Browser configuration in application settings.
-- Chrome/Chromium-based browsers, Firefox, and Safari support.
+- Chromium-based browser support.
 - SQLite persistence with a dedicated storage layer.
 - App settings stored in SQLite.
 - HTTP, SOCKS4, and SOCKS5 proxy records.
@@ -181,23 +181,9 @@ You can:
 - add a browser manually;
 - choose a browser engine type:
   - `Chromium-based`;
-  - `Firefox`;
-  - `Safari`;
 - specify a browser executable path.
 
 For Opera, Brave, Edge, Vivaldi, and other Chromium-based browsers, use `Chromium-based` and set the executable path manually if auto-detection does not find it.
-
-## Safari
-
-Safari is supported only on macOS through `safaridriver`.
-
-Before using Safari WebDriver on macOS, run:
-
-```bash
-safaridriver --enable
-```
-
-Safari limitation: `safaridriver` does not support a separate `user-data-dir` or `profile_path` per session in the same way Chrome and Firefox do.
 
 ## Session Settings
 

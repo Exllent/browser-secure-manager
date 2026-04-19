@@ -9,21 +9,29 @@
     <message><source>Untitled session</source><translation>Запись без названия</translation></message>
     <message><source>Add session</source><translation>Добавить запись</translation></message>
     <message><source>Application settings</source><translation>Настройки программы</translation></message>
+    <message><source>Ask before deleting</source><translation>Спрашивать перед удалением</translation></message>
     <message><source>Save all</source><translation>Сохранить всё</translation></message>
     <message><source>Refresh</source><translation>Обновить</translation></message>
     <message><source>Stop all</source><translation>Остановить все</translation></message>
     <message><source>ID</source><translation>ID</translation></message>
     <message><source>Name</source><translation>Название</translation></message>
     <message><source>Status</source><translation>Статус</translation></message>
-    <message><source>Open</source><translation>Открыть</translation></message>
+    <message><source>Open</source><translation>Запустить</translation></message>
     <message><source>Settings</source><translation>Настройки</translation></message>
     <message><source>Save</source><translation>Сохранить</translation></message>
     <message><source>Cancel</source><translation>Отмена</translation></message>
     <message><source>Delete</source><translation>Удалить</translation></message>
+    <message><source>Yes</source><translation>Да</translation></message>
+    <message><source>No</source><translation>Нет</translation></message>
+    <message><source>Delete session</source><translation>Удалить сессию</translation></message>
+    <message><source>Are you sure you want to delete this session?</source><translation>Вы уверены, что хотите удалить эту сессию?</translation></message>
+    <message><source>Delete browser</source><translation>Удалить браузер</translation></message>
+    <message><source>Are you sure you want to delete this browser?</source><translation>Вы уверены, что хотите удалить этот браузер?</translation></message>
     <message><source>Session settings</source><translation>Настройки записи</translation></message>
     <message><source>General</source><translation>Основное</translation></message>
     <message><source>Profile</source><translation>Профиль</translation></message>
     <message><source>Proxy</source><translation>Прокси</translation></message>
+    <message><source>Fingerprint</source><translation>Цифровой отпечаток</translation></message>
     <message><source>Window</source><translation>Окно</translation></message>
     <message><source>User-Agent</source><translation>User-Agent</translation></message>
     <message><source>Notes</source><translation>Заметки</translation></message>
@@ -32,14 +40,19 @@
     <message><source>Profile path</source><translation>Путь профиля</translation></message>
     <message><source>Selected proxy</source><translation>Выбранный прокси</translation></message>
     <message><source>No proxy</source><translation>Без прокси</translation></message>
+    <message><source>Selected fingerprint</source><translation>Выбранный цифровой отпечаток</translation></message>
+    <message><source>No fingerprint</source><translation>Без цифрового отпечатка</translation></message>
+    <message><source>Create and edit fingerprints in Application settings.</source><translation>Создавайте и редактируйте цифровые отпечатки в настройках программы.</translation></message>
     <message><source>Proxy note</source><translation>Заметка прокси</translation></message>
     <message><source>Width</source><translation>Ширина</translation></message>
     <message><source>Height</source><translation>Высота</translation></message>
     <message><source>Custom User-Agent</source><translation>Пользовательский User-Agent</translation></message>
     <message><source>Leave empty to use browser default User-Agent</source><translation>Оставьте пустым, чтобы использовать User-Agent браузера</translation></message>
+    <message><source>When a fingerprint is selected, its User-Agent has priority.</source><translation>Если выбран цифровой отпечаток, его User-Agent имеет приоритет.</translation></message>
     <message><source>Comment</source><translation>Комментарий</translation></message>
     <message><source>Browser not found</source><translation>Браузер не найден</translation></message>
     <message><source>Proxy not found</source><translation>Прокси не найден</translation></message>
+    <message><source>Fingerprint not found</source><translation>Цифровой отпечаток не найден</translation></message>
     <message><source>Proxy is not working</source><translation>Прокси не работает</translation></message>
     <message><source>Browser launch error</source><translation>Ошибка запуска браузера</translation></message>
     <message><source>Save error</source><translation>Ошибка сохранения</translation></message>
@@ -47,15 +60,27 @@
     <message><source>Browsers added: {count}</source><translation>Добавлено браузеров: {count}</translation></message>
     <message><source>Browsers</source><translation>Браузеры</translation></message>
     <message><source>Proxies</source><translation>Прокси</translation></message>
+    <message><source>Fingerprints</source><translation>Цифровые отпечатки</translation></message>
     <message><source>Language</source><translation>Язык</translation></message>
     <message><source>Language is applied after saving.</source><translation>Язык применяется после сохранения.</translation></message>
     <message><source>Find browsers</source><translation>Найти браузеры</translation></message>
     <message><source>Add manually</source><translation>Добавить вручную</translation></message>
     <message><source>Add proxy</source><translation>Добавить прокси</translation></message>
+    <message><source>Add fingerprint</source><translation>Добавить цифровой отпечаток</translation></message>
+    <message><source>Generate fingerprint</source><translation>Сгенерировать цифровой отпечаток</translation></message>
     <message><source>Load CSV</source><translation>Загрузить CSV</translation></message>
     <message><source>Test all</source><translation>Тестировать все</translation></message>
     <message><source>Select all</source><translation>Выбрать всё</translation></message>
     <message><source>Clear all</source><translation>Снять всё</translation></message>
+    <message><source>Delete selected</source><translation>Удалить выбранные</translation></message>
+    <message><source>Delete proxy</source><translation>Удалить прокси</translation></message>
+    <message><source>Delete proxies</source><translation>Удалить прокси</translation></message>
+    <message><source>Are you sure you want to delete this proxy?</source><translation>Вы уверены, что хотите удалить этот прокси?</translation></message>
+    <message><source>Are you sure you want to delete selected proxies?</source><translation>Вы уверены, что хотите удалить выбранные прокси?</translation></message>
+    <message><source>Delete fingerprint</source><translation>Удалить цифровой отпечаток</translation></message>
+    <message><source>Delete fingerprints</source><translation>Удалить цифровые отпечатки</translation></message>
+    <message><source>Are you sure you want to delete this fingerprint?</source><translation>Вы уверены, что хотите удалить этот цифровой отпечаток?</translation></message>
+    <message><source>Are you sure you want to delete selected fingerprints?</source><translation>Вы уверены, что хотите удалить выбранные цифровые отпечатки?</translation></message>
     <message><source>Remove errors</source><translation>Удалить с ошибками</translation></message>
     <message><source>Remove ping &gt; 500</source><translation>Удалить ping &gt; 500</translation></message>
     <message><source>Choose proxy CSV file</source><translation>Выберите CSV со списком прокси</translation></message>
@@ -67,6 +92,7 @@
     <message><source>Every browser must have a name.</source><translation>У каждого браузера должно быть название.</translation></message>
     <message><source>Every proxy must have a host or IP.</source><translation>У каждого прокси должен быть host или IP.</translation></message>
     <message><source>Every proxy must have a port.</source><translation>У каждого прокси должен быть port.</translation></message>
+    <message><source>Every fingerprint must have a name.</source><translation>У каждого цифрового отпечатка должно быть название.</translation></message>
     <message><source>Settings save error</source><translation>Ошибка сохранения настроек</translation></message>
     <message><source>Choose browser executable</source><translation>Выберите исполняемый файл браузера</translation></message>
     <message><source>Executable path</source><translation>Путь к исполняемому файлу</translation></message>
@@ -80,6 +106,45 @@
     <message><source>Username</source><translation>Логин</translation></message>
     <message><source>Password</source><translation>Пароль</translation></message>
     <message><source>Test</source><translation>Тест</translation></message>
+    <message><source>Edit</source><translation>Редактировать</translation></message>
+    <message><source>Generate</source><translation>Сгенерировать</translation></message>
+    <message><source>Selected</source><translation>Выбран</translation></message>
+    <message><source>Enabled</source><translation>Включен</translation></message>
+    <message><source>Generated fingerprint</source><translation>Сгенерированный цифровой отпечаток</translation></message>
+    <message><source>New fingerprint</source><translation>Новый цифровой отпечаток</translation></message>
+    <message><source>Fingerprint settings</source><translation>Настройки цифрового отпечатка</translation></message>
+    <message><source>Hide automation</source><translation>Скрывать автоматизацию</translation></message>
+    <message><source>Hide headless</source><translation>Скрывать headless</translation></message>
+    <message><source>Spoof plugins</source><translation>Подменять plugins</translation></message>
+    <message><source>Languages</source><translation>Языки</translation></message>
+    <message><source>Locale</source><translation>Локаль</translation></message>
+    <message><source>Canvas mode</source><translation>Режим Canvas</translation></message>
+    <message><source>Canvas noise</source><translation>Шум Canvas</translation></message>
+    <message><source>WebGL vendor</source><translation>Производитель WebGL</translation></message>
+    <message><source>WebGL renderer</source><translation>Рендерер WebGL</translation></message>
+    <message><source>Audio noise</source><translation>Шум Audio</translation></message>
+    <message><source>Font list</source><translation>Список шрифтов</translation></message>
+    <message><source>Fake fonts count</source><translation>Количество фейковых шрифтов</translation></message>
+    <message><source>Timezone</source><translation>Часовой пояс</translation></message>
+    <message><source>Override geolocation</source><translation>Переопределить геолокацию</translation></message>
+    <message><source>Latitude</source><translation>Широта</translation></message>
+    <message><source>Longitude</source><translation>Долгота</translation></message>
+    <message><source>WebRTC mode</source><translation>Режим WebRTC</translation></message>
+    <message><source>Hardware concurrency</source><translation>Потоки процессора</translation></message>
+    <message><source>Device memory</source><translation>Память устройства</translation></message>
+    <message><source>Platform</source><translation>Платформа</translation></message>
+    <message><source>TLS profile</source><translation>TLS-профиль</translation></message>
+    <message><source>Browser default</source><translation>По умолчанию браузера</translation></message>
+    <message><source>No TLS profile</source><translation>Без TLS-профиля</translation></message>
+    <message><source>Spoof touch support</source><translation>Подменять touch support</translation></message>
+    <message><source>Spoof connection</source><translation>Подменять connection</translation></message>
+    <message><source>Spoof permissions</source><translation>Подменять permissions</translation></message>
+    <message><source>Hide adblock signs</source><translation>Скрывать признаки adblock</translation></message>
+    <message><source>Spoof battery</source><translation>Подменять battery</translation></message>
+    <message><source>Separate scripts with |</source><translation>Разделяйте скрипты символом |</translation></message>
+    <message><source>JS before load</source><translation>JS до загрузки</translation></message>
+    <message><source>JS after load</source><translation>JS после загрузки</translation></message>
+    <message><source>Fingerprint validation error</source><translation>Ошибка валидации цифрового отпечатка</translation></message>
     <message><source>No test</source><translation>нет теста</translation></message>
     <message><source>No host</source><translation>нет host</translation></message>
     <message><source>Testing</source><translation>тест</translation></message>

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import os
 from pathlib import Path
@@ -11,11 +12,9 @@ import sys
 from selenium import webdriver
 from selenium.common.exceptions import WebDriverException
 from selenium.webdriver.chrome.options import Options as ChromeOptions
-from selenium.webdriver.firefox.options import Options as FirefoxOptions
-from selenium.webdriver.safari.options import Options as SafariOptions
-from selenium.webdriver.safari.service import Service as SafariService
 
 from models.browser_config import BrowserConfig
+from models.fingerprint_config import FingerprintConfig
 from models.proxy_config import ProxyConfig
 from models.session_entry import SessionEntry
 
@@ -24,13 +23,14 @@ logger = logging.getLogger(__name__)
 
 class SeleniumBrowserBackend:
     def __init__(self) -> None:
-        self._drivers: dict[int, webdriver.Chrome | webdriver.Firefox | webdriver.Safari] = {}
+        self._drivers: dict[int, webdriver.Chrome] = {}
 
     def open_session(
         self,
         session: SessionEntry,
         browser_config: BrowserConfig,
         proxy_config: ProxyConfig | None = None,
+        fingerprint_config: FingerprintConfig | None = None,
     ) -> None:
         if session.id is None:
             raise ValueError("Session must be saved before opening a browser")
@@ -39,28 +39,30 @@ class SeleniumBrowserBackend:
         profile_dir = Path(session.profile_path).expanduser()
         profile_dir.mkdir(parents=True, exist_ok=True)
 
-        browser_type = browser_config.normalized_type()
         logger.info(
-            "Opening %s session %s with %s profile %s",
-            browser_type,
+            "Opening Chromium session %s with %s profile %s",
             session.id,
             browser_config.display_name,
             profile_dir,
         )
 
         try:
-            if browser_type == "safari":
-                driver = self._open_safari(session, browser_config, profile_dir)
-            elif browser_type == "firefox":
-                driver = self._open_firefox(session, browser_config, profile_dir, proxy_config)
-            else:
-                driver = self._open_chromium(session, browser_config, profile_dir, proxy_config)
+            driver = self._open_chromium(
+                session,
+                browser_config,
+                profile_dir,
+                proxy_config,
+                fingerprint_config,
+            )
         except Exception:
             logger.exception("Failed to open browser for session %s", session.id)
             raise
 
         self._drivers[session.id] = driver
         driver.get(session.url)
+        if fingerprint_config is not None:
+            for script in fingerprint_config.custom_js_after_load:
+                driver.execute_script(script)
 
     def close_session(self, session_id: int) -> None:
         driver = self._drivers.pop(session_id, None)
@@ -86,101 +88,42 @@ class SeleniumBrowserBackend:
         browser_config: BrowserConfig,
         profile_dir: Path,
         proxy_config: ProxyConfig | None,
+        fingerprint_config: FingerprintConfig | None,
     ) -> webdriver.Chrome:
         options = ChromeOptions()
         browser_binary = _browser_binary_from_config(
             browser_config,
             default_browser_name="Chrome / Chromium",
             default_env_var="CHROME_BINARY",
-            command_names=("google-chrome", "chrome", "chromium", "chromium-browser"),
+            command_names=(
+                "google-chrome",
+                "chrome",
+                "chromium",
+                "chromium-browser",
+                "brave-browser",
+                "microsoft-edge",
+                "vivaldi",
+                "opera",
+            ),
             candidates=_chromium_candidates(),
-            version_keywords=("Google Chrome", "Chromium", "Chrome", "Opera"),
+            version_keywords=_chromium_version_keywords(),
             required=False,
         )
         if browser_binary is not None:
             options.binary_location = str(browser_binary)
         options.add_argument(f"--user-data-dir={profile_dir}")
         options.add_argument(f"--window-size={session.window_width},{session.window_height}")
-        if session.custom_user_agent.strip():
-            options.add_argument(f"--user-agent={session.custom_user_agent.strip()}")
+        user_agent = _effective_user_agent(session, fingerprint_config)
+        if user_agent:
+            options.add_argument(f"--user-agent={user_agent}")
         if proxy_config is not None:
             options.add_argument(f"--proxy-server={proxy_config.browser_proxy_url()}")
-        return webdriver.Chrome(options=options)
+        if fingerprint_config is not None:
+            _configure_chromium_options(options, fingerprint_config)
 
-    @staticmethod
-    def _open_firefox(
-        session: SessionEntry,
-        browser_config: BrowserConfig,
-        profile_dir: Path,
-        proxy_config: ProxyConfig | None,
-    ) -> webdriver.Firefox:
-        browser_binary = _browser_binary_from_config(
-            browser_config,
-            default_browser_name="Firefox",
-            default_env_var="FIREFOX_BINARY",
-            command_names=("firefox", "firefox-esr"),
-            candidates=_firefox_candidates(),
-            version_keywords=("Firefox",),
-            required=True,
-        )
-        if browser_binary is None:
-            raise RuntimeError("Firefox executable was not found")
-
-        options = FirefoxOptions()
-        options.binary_location = str(browser_binary)
-        if session.custom_user_agent.strip():
-            options.set_preference("general.useragent.override", session.custom_user_agent.strip())
-        if proxy_config is not None:
-            options.set_preference("network.proxy.type", 1)
-            if proxy_config.normalized_type() in {"socks4", "socks5"}:
-                options.set_preference("network.proxy.socks", proxy_config.host.strip())
-                options.set_preference("network.proxy.socks_port", proxy_config.port)
-                socks_version = 4 if proxy_config.normalized_type() == "socks4" else 5
-                options.set_preference("network.proxy.socks_version", socks_version)
-                options.set_preference("network.proxy.socks_remote_dns", True)
-            else:
-                options.set_preference("network.proxy.http", proxy_config.host.strip())
-                options.set_preference("network.proxy.http_port", proxy_config.port)
-                options.set_preference("network.proxy.ssl", proxy_config.host.strip())
-                options.set_preference("network.proxy.ssl_port", proxy_config.port)
-        options.add_argument("-profile")
-        options.add_argument(str(profile_dir))
-        driver = webdriver.Firefox(options=options)
-        driver.set_window_size(session.window_width, session.window_height)
-        return driver
-
-    @staticmethod
-    def _open_safari(
-        session: SessionEntry,
-        browser_config: BrowserConfig,
-        profile_dir: Path,
-    ) -> webdriver.Safari:
-        if sys.platform != "darwin":
-            raise RuntimeError("Safari WebDriver is available only on macOS.")
-
-        logger.warning(
-            "Safari does not support per-session user-data-dir/profile_path via safaridriver. "
-            "Ignoring profile path for session %s: %s",
-            session.id,
-            profile_dir,
-        )
-
-        options = SafariOptions()
-        if session.custom_user_agent.strip():
-            logger.warning(
-                "Safari WebDriver does not support per-session User-Agent launch settings. "
-                "Ignoring custom User-Agent for session %s.",
-                session.id,
-            )
-        executable_path = browser_config.executable_path.strip()
-        if executable_path:
-            path = Path(executable_path).expanduser()
-            _validate_driver_binary(path=path, driver_name=browser_config.display_name)
-            driver = webdriver.Safari(service=SafariService(executable_path=str(path)), options=options)
-        else:
-            driver = webdriver.Safari(options=options)
-
-        driver.set_window_size(session.window_width, session.window_height)
+        driver = webdriver.Chrome(options=options)
+        if fingerprint_config is not None:
+            _apply_chromium_fingerprint(driver, fingerprint_config)
         return driver
 
 
@@ -189,27 +132,24 @@ def discover_installed_browsers() -> list[BrowserConfig]:
     seen_paths: set[str] = set()
     known_browsers = (
         ("chrome", "Chrome / Chromium", "chromium", _chromium_candidates()),
-        ("firefox", "Firefox", "firefox", _firefox_candidates()),
+        ("brave", "Brave", "chromium", _brave_candidates()),
+        ("edge", "Microsoft Edge", "chromium", _edge_candidates()),
+        ("vivaldi", "Vivaldi", "chromium", _vivaldi_candidates()),
         ("opera", "Opera", "chromium", _opera_candidates()),
-        ("safari", "Safari", "safari", _safari_driver_candidates()),
     )
 
     for key, display_name, browser_type, candidates in known_browsers:
-        version_keywords = _version_keywords_for_type(browser_type)
         for candidate in candidates:
             path = Path(candidate).expanduser()
             path_key = str(path)
             if path_key in seen_paths or not path.is_file() or not _looks_like_native_binary(path):
                 continue
             try:
-                if browser_type == "safari":
-                    _validate_driver_binary(path=path, driver_name=display_name)
-                else:
-                    _validate_browser_binary(
-                        path=path,
-                        browser_name=display_name,
-                        version_keywords=version_keywords,
-                    )
+                _validate_browser_binary(
+                    path=path,
+                    browser_name=display_name,
+                    version_keywords=_chromium_version_keywords(),
+                )
             except RuntimeError:
                 continue
 
@@ -230,6 +170,243 @@ def discover_installed_browsers() -> list[BrowserConfig]:
 
 
 SeleniumBrowserManager = SeleniumBrowserBackend
+
+
+def _effective_user_agent(
+    session: SessionEntry,
+    fingerprint_config: FingerprintConfig | None,
+) -> str:
+    if fingerprint_config is not None and fingerprint_config.user_agent:
+        return fingerprint_config.user_agent.strip()
+    return session.custom_user_agent.strip()
+
+
+def _configure_chromium_options(options: ChromeOptions, config: FingerprintConfig) -> None:
+    if config.hide_automation:
+        options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        options.add_experimental_option("useAutomationExtension", False)
+        options.add_argument("--disable-blink-features=AutomationControlled")
+
+    languages = config.spoof_languages or config.locale
+    if languages:
+        options.add_experimental_option("prefs", {"intl.accept_languages": ",".join(languages)})
+        options.add_argument(f"--lang={languages[0]}")
+
+    if config.webrtc_mode == "disable":
+        options.add_argument("--disable-webrtc")
+    elif config.webrtc_mode in {"proxy_dns", "public_ip_only"}:
+        options.add_argument("--force-webrtc-ip-handling-policy=disable_non_proxied_udp")
+
+
+def _apply_chromium_fingerprint(
+    driver: webdriver.Chrome,
+    config: FingerprintConfig,
+) -> None:
+    if config.user_agent:
+        driver.execute_cdp_cmd(
+            "Network.setUserAgentOverride",
+            {
+                "userAgent": config.user_agent,
+                "platform": config.platform or "",
+                "acceptLanguage": ",".join(config.spoof_languages or config.locale),
+            },
+        )
+
+    if config.timezone:
+        driver.execute_cdp_cmd("Emulation.setTimezoneOverride", {"timezoneId": config.timezone})
+
+    if config.geolocation is not None:
+        latitude, longitude = config.geolocation
+        driver.execute_cdp_cmd(
+            "Emulation.setGeolocationOverride",
+            {
+                "latitude": latitude,
+                "longitude": longitude,
+                "accuracy": 100,
+            },
+        )
+
+    script = _build_chromium_fingerprint_script(config)
+    if script:
+        driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {"source": script})
+
+
+def _build_chromium_fingerprint_script(config: FingerprintConfig) -> str:
+    patches: list[str] = []
+
+    if config.hide_automation:
+        patches.append(
+            """
+            Object.defineProperty(Navigator.prototype, 'webdriver', {
+                get: () => undefined,
+                configurable: true
+            });
+            """
+        )
+
+    patches.extend(config.custom_js_before_load)
+
+    if config.platform:
+        patches.append(
+            f"""
+            Object.defineProperty(Navigator.prototype, 'platform', {{
+                get: () => {json.dumps(config.platform)},
+                configurable: true
+            }});
+            """
+        )
+
+    languages = config.spoof_languages or config.locale
+    if languages:
+        patches.append(
+            f"""
+            Object.defineProperty(Navigator.prototype, 'languages', {{
+                get: () => {json.dumps(languages)},
+                configurable: true
+            }});
+            Object.defineProperty(Navigator.prototype, 'language', {{
+                get: () => {json.dumps(languages[0])},
+                configurable: true
+            }});
+            """
+        )
+
+    if config.hardware_concurrency is not None:
+        patches.append(
+            f"""
+            Object.defineProperty(Navigator.prototype, 'hardwareConcurrency', {{
+                get: () => {config.hardware_concurrency},
+                configurable: true
+            }});
+            """
+        )
+
+    if config.device_memory is not None:
+        patches.append(
+            f"""
+            Object.defineProperty(Navigator.prototype, 'deviceMemory', {{
+                get: () => {config.device_memory},
+                configurable: true
+            }});
+            """
+        )
+
+    if config.spoof_plugins:
+        patches.append(
+            """
+            Object.defineProperty(Navigator.prototype, 'plugins', {
+                get: () => [
+                    {name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer'},
+                    {name: 'Chrome PDF Viewer', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai'},
+                    {name: 'Native Client', filename: 'internal-nacl-plugin'}
+                ],
+                configurable: true
+            });
+            """
+        )
+
+    if config.webgl_vendor or config.webgl_renderer:
+        vendor = json.dumps(config.webgl_vendor or "Google Inc.")
+        renderer = json.dumps(config.webgl_renderer or "ANGLE")
+        patches.append(
+            f"""
+            const originalGetParameter = WebGLRenderingContext.prototype.getParameter;
+            WebGLRenderingContext.prototype.getParameter = function(parameter) {{
+                if (parameter === 37445) return {vendor};
+                if (parameter === 37446) return {renderer};
+                return originalGetParameter.call(this, parameter);
+            }};
+            if (window.WebGL2RenderingContext) {{
+                const originalGetParameter2 = WebGL2RenderingContext.prototype.getParameter;
+                WebGL2RenderingContext.prototype.getParameter = function(parameter) {{
+                    if (parameter === 37445) return {vendor};
+                    if (parameter === 37446) return {renderer};
+                    return originalGetParameter2.call(this, parameter);
+                }};
+            }}
+            """
+        )
+
+    if config.spoof_touch_support:
+        patches.append(
+            """
+            Object.defineProperty(Navigator.prototype, 'maxTouchPoints', {
+                get: () => 0,
+                configurable: true
+            });
+            """
+        )
+
+    if config.spoof_connection:
+        patches.append(
+            """
+            Object.defineProperty(Navigator.prototype, 'connection', {
+                get: () => ({
+                    downlink: 10,
+                    effectiveType: '4g',
+                    rtt: 50,
+                    saveData: false
+                }),
+                configurable: true
+            });
+            """
+        )
+
+    if config.spoof_battery:
+        patches.append(
+            """
+            Navigator.prototype.getBattery = () => Promise.resolve({
+                charging: true,
+                chargingTime: 0,
+                dischargingTime: Infinity,
+                level: 1,
+                addEventListener: () => undefined,
+                removeEventListener: () => undefined
+            });
+            """
+        )
+
+    if config.spoof_permissions:
+        patches.append(
+            """
+            if (navigator.permissions && navigator.permissions.query) {
+                const originalPermissionsQuery = navigator.permissions.query.bind(navigator.permissions);
+                navigator.permissions.query = (parameters) => {
+                    if (parameters && parameters.name === 'notifications') {
+                        return Promise.resolve({state: Notification.permission});
+                    }
+                    return originalPermissionsQuery(parameters);
+                };
+            }
+            """
+        )
+
+    if config.canvas_mode in {'noise', 'fixed'}:
+        noise = 0 if config.canvas_mode == "fixed" else config.canvas_noise_level
+        patches.append(
+            f"""
+            const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
+            HTMLCanvasElement.prototype.toDataURL = function(...args) {{
+                try {{
+                    const context = this.getContext('2d');
+                    if (context) {{
+                        const imageData = context.getImageData(0, 0, this.width, this.height);
+                        const step = Math.max(1, Math.floor(1 / Math.max({noise}, 0.001)));
+                        for (let i = 0; i < imageData.data.length; i += 4 * step) {{
+                            imageData.data[i] = (imageData.data[i] + 1) % 256;
+                        }}
+                        context.putImageData(imageData, 0, 0);
+                    }}
+                }} catch (error) {{}}
+                return originalToDataURL.apply(this, args);
+            }};
+            """
+        )
+
+    if not patches:
+        return ""
+
+    return "'use strict';\n(() => {\n" + "\n".join(patches) + "\n})();"
 
 
 def _browser_binary_from_config(
@@ -318,37 +495,12 @@ def _find_browser_binary(
     )
 
 
-def _firefox_candidates() -> tuple[str, ...]:
-    if sys.platform == "darwin":
-        return (
-            "/Applications/Firefox.app/Contents/MacOS/firefox",
-            str(Path.home() / "Applications/Firefox.app/Contents/MacOS/firefox"),
-        )
-    if sys.platform == "win32":
-        return _windows_browser_candidates(
-            "Mozilla Firefox",
-            "firefox.exe",
-            extra_env_vars=("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA"),
-        )
-    return (
-        "/snap/firefox/current/usr/lib/firefox/firefox",
-        "/snap/firefox/current/usr/lib/firefox/firefox-bin",
-        "/usr/lib/firefox/firefox",
-        "/usr/lib/firefox/firefox-bin",
-        "/usr/bin/firefox",
-        "/usr/bin/firefox-esr",
-        "/opt/firefox/firefox",
-    )
-
-
 def _chromium_candidates() -> tuple[str, ...]:
     if sys.platform == "darwin":
         return (
             "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
             "/Applications/Chromium.app/Contents/MacOS/Chromium",
-            "/Applications/Opera.app/Contents/MacOS/Opera",
             str(Path.home() / "Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
-            str(Path.home() / "Applications/Opera.app/Contents/MacOS/Opera"),
         )
     if sys.platform == "win32":
         return (
@@ -362,7 +514,6 @@ def _chromium_candidates() -> tuple[str, ...]:
                 "chrome.exe",
                 extra_env_vars=("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA"),
             ),
-            *_opera_candidates(),
         )
     return (
         "/usr/bin/google-chrome",
@@ -372,7 +523,64 @@ def _chromium_candidates() -> tuple[str, ...]:
         "/snap/chromium/current/usr/lib/chromium-browser/chrome",
         "/snap/bin/chromium",
         "/opt/google/chrome/chrome",
-        *_opera_candidates(),
+    )
+
+
+def _brave_candidates() -> tuple[str, ...]:
+    if sys.platform == "darwin":
+        return (
+            "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+            str(Path.home() / "Applications/Brave Browser.app/Contents/MacOS/Brave Browser"),
+        )
+    if sys.platform == "win32":
+        return _windows_browser_candidates(
+            "BraveSoftware/Brave-Browser/Application",
+            "brave.exe",
+            extra_env_vars=("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA"),
+        )
+    return (
+        "/usr/bin/brave-browser",
+        "/usr/bin/brave",
+        "/snap/bin/brave",
+        "/opt/brave.com/brave/brave-browser",
+    )
+
+
+def _edge_candidates() -> tuple[str, ...]:
+    if sys.platform == "darwin":
+        return (
+            "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+            str(Path.home() / "Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"),
+        )
+    if sys.platform == "win32":
+        return _windows_browser_candidates(
+            "Microsoft/Edge/Application",
+            "msedge.exe",
+            extra_env_vars=("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA"),
+        )
+    return (
+        "/usr/bin/microsoft-edge",
+        "/usr/bin/microsoft-edge-stable",
+        "/opt/microsoft/msedge/msedge",
+    )
+
+
+def _vivaldi_candidates() -> tuple[str, ...]:
+    if sys.platform == "darwin":
+        return (
+            "/Applications/Vivaldi.app/Contents/MacOS/Vivaldi",
+            str(Path.home() / "Applications/Vivaldi.app/Contents/MacOS/Vivaldi"),
+        )
+    if sys.platform == "win32":
+        return _windows_browser_candidates(
+            "Vivaldi/Application",
+            "vivaldi.exe",
+            extra_env_vars=("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA"),
+        )
+    return (
+        "/usr/bin/vivaldi",
+        "/usr/bin/vivaldi-stable",
+        "/opt/vivaldi/vivaldi",
     )
 
 
@@ -401,12 +609,6 @@ def _opera_candidates() -> tuple[str, ...]:
         "/snap/bin/opera",
         "/opt/opera/opera",
     )
-
-
-def _safari_driver_candidates() -> tuple[str, ...]:
-    if sys.platform == "darwin":
-        return ("/usr/bin/safaridriver",)
-    return ()
 
 
 def _windows_browser_candidates(
@@ -462,33 +664,14 @@ def _validate_browser_binary(
         )
 
 
-def _validate_driver_binary(*, path: Path, driver_name: str) -> None:
-    if not path.is_file():
-        raise RuntimeError(f"{driver_name}: driver executable file was not found: {path}")
-    if not _looks_like_native_binary(path):
-        raise RuntimeError(f"{driver_name}: selected file is not a native executable: {path}")
-
-    try:
-        result = _run_version_command(path)
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        raise RuntimeError(f"{driver_name}: cannot run driver executable: {path}\n{exc}") from exc
-
-    output = f"{result.stdout}\n{result.stderr}".strip()
-    if result.returncode != 0:
-        raise RuntimeError(
-            f"{driver_name}: selected driver executable is not usable.\n"
-            f"Path: {path}\n"
-            f"Output: {output or f'exit code {result.returncode}'}"
-        )
-
-
-def _version_keywords_for_type(browser_type: str) -> tuple[str, ...]:
-    if browser_type == "safari":
-        return ("Safari", "safaridriver")
-    return ("Firefox",) if browser_type == "firefox" else (
+def _chromium_version_keywords() -> tuple[str, ...]:
+    return (
         "Google Chrome",
         "Chromium",
         "Chrome",
+        "Brave",
+        "Microsoft Edge",
+        "Vivaldi",
         "Opera",
     )
 
@@ -506,17 +689,3 @@ def _run_version_command(path: Path) -> subprocess.CompletedProcess[str]:
         kwargs["startupinfo"] = startupinfo
 
     return subprocess.run([str(path), "--version"], **kwargs)
-
-
-def _find_firefox_binary() -> Path:
-    firefox_binary = _find_browser_binary(
-        browser_name="Firefox",
-        env_var="FIREFOX_BINARY",
-        command_names=("firefox", "firefox-esr"),
-        candidates=_firefox_candidates(),
-        version_keywords=("Firefox",),
-        required=True,
-    )
-    if firefox_binary is None:
-        raise RuntimeError("Firefox executable was not found")
-    return firefox_binary

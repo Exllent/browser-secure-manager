@@ -153,6 +153,13 @@ class MainWindow(QMainWindow):
             return
 
     def delete_row(self, session: SessionEntry, row: SessionRowWidget) -> None:
+        if self.app_service.confirm_before_delete() and not _confirm_delete(
+            self,
+            _("Delete session"),
+            _("Are you sure you want to delete this session?"),
+        ):
+            return
+
         if session.id is not None:
             self.app_service.delete_session(session.id)
             self.rows.pop(session.id, None)
@@ -195,3 +202,15 @@ class MainWindow(QMainWindow):
 
         for row in self.rows.values():
             row.retranslate_ui()
+
+
+def _confirm_delete(parent: QWidget, title: str, text: str) -> bool:
+    box = QMessageBox(parent)
+    box.setWindowTitle(title)
+    box.setText(text)
+    box.setIcon(QMessageBox.Icon.Question)
+    yes_button = box.addButton(_("Yes"), QMessageBox.ButtonRole.YesRole)
+    no_button = box.addButton(_("No"), QMessageBox.ButtonRole.NoRole)
+    box.setDefaultButton(no_button)
+    box.exec()
+    return box.clickedButton() == yes_button

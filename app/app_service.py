@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from browser_backends.base import BrowserBackend
 from db import storage
 from models.browser_config import BrowserConfig
+from models.fingerprint_profile import FingerprintProfile
 from models.proxy_config import ProxyConfig
 from models.session_entry import SessionEntry
 from services.proxy_tester import ProxyTestResult, test_proxy
@@ -60,6 +61,16 @@ class AppService:
                 error_message="The selected proxy was not found or is disabled in application settings.",
             )
 
+        fingerprint_profile = storage.get_fingerprint_profile(saved.fingerprint_id)
+        if saved.fingerprint_id is not None and (
+            fingerprint_profile is None or not fingerprint_profile.enabled
+        ):
+            return OpenSessionResult(
+                session=saved,
+                error_title="Fingerprint not found",
+                error_message="The selected fingerprint was not found or is disabled in application settings.",
+            )
+
         if proxy_config is not None:
             proxy_result = test_proxy(proxy_config)
             if not proxy_result.ok:
@@ -73,7 +84,12 @@ class AppService:
                 )
 
         try:
-            self.browser_backend.open_session(saved, browser_config, proxy_config)
+            self.browser_backend.open_session(
+                saved,
+                browser_config,
+                proxy_config,
+                fingerprint_profile.config if fingerprint_profile is not None else None,
+            )
         except Exception as exc:
             saved.status = "error"
             storage.update_session(saved)
@@ -126,8 +142,23 @@ class AppService:
     def test_proxy(self, proxy: ProxyConfig) -> ProxyTestResult:
         return test_proxy(proxy)
 
+    def get_fingerprint_profiles(self, *, enabled_only: bool = False) -> list[FingerprintProfile]:
+        return storage.get_fingerprint_profiles(enabled_only=enabled_only)
+
+    def get_fingerprint_profile(self, fingerprint_id: int | None) -> FingerprintProfile | None:
+        return storage.get_fingerprint_profile(fingerprint_id)
+
+    def save_fingerprint_profile(self, profile: FingerprintProfile) -> FingerprintProfile:
+        return storage.upsert_fingerprint_profile(profile)
+
+    def delete_fingerprint_profile(self, fingerprint_id: int) -> None:
+        storage.delete_fingerprint_profile(fingerprint_id)
+
     def get_setting(self, key: str, default: str = "") -> str:
         return storage.get_setting(key, default)
 
     def set_setting(self, key: str, value: str) -> None:
         storage.set_setting(key, value)
+
+    def confirm_before_delete(self) -> bool:
+        return self.get_setting("confirm_before_delete", "1") != "0"

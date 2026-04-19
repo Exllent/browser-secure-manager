@@ -11,6 +11,7 @@ class SessionEntry:
     browser: str
     profile_path: str
     proxy_id: int | None = None
+    fingerprint_id: int | None = None
     proxy_label: str = ""
     custom_user_agent: str = ""
     notes: str = ""
@@ -19,5 +20,4 @@ class SessionEntry:
     status: str = "idle"
 
     def normalized_browser(self) -> str:
-        browser = self.browser.strip().lower()
-        return browser if browser in {"chrome", "firefox"} else "chrome"
+        return self.browser.strip().lower() or "chrome"

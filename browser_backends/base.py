@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Protocol
 
 from models.browser_config import BrowserConfig
+from models.fingerprint_config import FingerprintConfig
 from models.proxy_config import ProxyConfig
 from models.session_entry import SessionEntry
 
@@ -13,6 +14,7 @@ class BrowserBackend(Protocol):
         session: SessionEntry,
         browser_config: BrowserConfig,
         proxy_config: ProxyConfig | None = None,
+        fingerprint_config: FingerprintConfig | None = None,
     ) -> None:
         ...
 
