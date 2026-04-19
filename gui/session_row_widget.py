@@ -21,17 +21,18 @@ from PySide6.QtWidgets import (
 )
 
 from app.app_service import AppService
+from app.i18n import _
 from models.browser_config import BrowserConfig
 from models.session_entry import SessionEntry
 
 SESSION_TABLE_COLUMNS = (
-    ("id", 64),
-    ("Название", 360),
-    ("Статус", 110),
-    ("Открыть", 72),
-    ("Настройки", 92),
-    ("Сохранить", 92),
-    ("Удалить", 72),
+    ("ID", 64),
+    ("Name", 360),
+    ("Status", 110),
+    ("Open", 72),
+    ("Settings", 92),
+    ("Save", 92),
+    ("Delete", 72),
 )
 
 
@@ -59,22 +60,23 @@ class SessionRowWidget(QWidget):
         self._notes = session.notes
         self._window_width = session.window_width
         self._window_height = session.window_height
+        self._status = session.status
 
-        self.id_label = QLabel(str(session.id or "new"))
+        self.id_label = QLabel(str(session.id) if session.id is not None else _("new"))
         self.id_label.setFixedWidth(48)
 
         self.name_edit = QLineEdit(session.name)
-        self.name_edit.setPlaceholderText("Название")
+        self.name_edit.setPlaceholderText(_("Name"))
         self.name_edit.setFixedWidth(SESSION_TABLE_COLUMNS[1][1])
         self._browser_configs = browser_configs
 
-        self.status_label = QLabel(session.status)
+        self.status_label = QLabel(_status_label(session.status))
         self.status_label.setFixedWidth(SESSION_TABLE_COLUMNS[2][1])
 
-        self.open_button = self._make_action_button("▶", "Открыть", "#1f9d55")
-        self.settings_button = self._make_action_button("⚙", "Настройки", "#9ca3af")
-        self.save_button = self._make_action_button("✓", "Сохранить", "#60a5fa")
-        self.delete_button = self._make_action_button("✖", "Удалить", "#f87171")
+        self.open_button = self._make_action_button("▶", _("Open"), "#1f9d55")
+        self.settings_button = self._make_action_button("⚙", _("Settings"), "#9ca3af")
+        self.save_button = self._make_action_button("✓", _("Save"), "#60a5fa")
+        self.delete_button = self._make_action_button("✖", _("Delete"), "#f87171")
 
         layout = QGridLayout(self)
         layout.setContentsMargins(6, 4, 6, 4)
@@ -128,7 +130,7 @@ class SessionRowWidget(QWidget):
     def to_session(self) -> SessionEntry:
         return SessionEntry(
             id=self._session_id,
-            name=self.name_edit.text().strip() or "Untitled session",
+            name=self.name_edit.text().strip() or _("Untitled session"),
             url=self._url.strip() or "about:blank",
             browser=self._browser.strip() or "chrome",
             profile_path=self._profile_path.strip(),
@@ -138,12 +140,12 @@ class SessionRowWidget(QWidget):
             notes=self._notes.strip(),
             window_width=self._window_width,
             window_height=self._window_height,
-            status=self.status_label.text(),
+            status=self._status,
         )
 
     def set_session(self, session: SessionEntry) -> None:
         self._session_id = session.id
-        self.id_label.setText(str(session.id or "new"))
+        self.id_label.setText(str(session.id) if session.id is not None else _("new"))
         self._url = session.url
         self._browser = session.browser
         self._profile_path = session.profile_path
@@ -156,7 +158,18 @@ class SessionRowWidget(QWidget):
         self.set_status(session.status)
 
     def set_status(self, status: str) -> None:
-        self.status_label.setText(status)
+        self._status = status
+        self.status_label.setText(_status_label(status))
+
+    def retranslate_ui(self) -> None:
+        if self._session_id is None:
+            self.id_label.setText(_("new"))
+        self.name_edit.setPlaceholderText(_("Name"))
+        self.status_label.setText(_status_label(self._status))
+        self.open_button.setToolTip(_("Open"))
+        self.settings_button.setToolTip(_("Settings"))
+        self.save_button.setToolTip(_("Save"))
+        self.delete_button.setToolTip(_("Delete"))
 
     def set_browser_configs(
         self,
@@ -193,7 +206,8 @@ class SessionSettingsDialog(QDialog):
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
-        self.setWindowTitle(f"Настройки записи {session.id or 'new'}")
+        session_label = str(session.id) if session.id is not None else _("new")
+        self.setWindowTitle(f"{_('Session settings')} {session_label}")
         self.resize(720, 520)
         self._session = session
         self.app_service = app_service
@@ -211,14 +225,14 @@ class SessionSettingsDialog(QDialog):
         self._load_proxies(session.proxy_id)
 
         self.proxy_label_edit = QLineEdit(session.proxy_label)
-        self.proxy_label_edit.setPlaceholderText("Свободная заметка по прокси")
+        self.proxy_label_edit.setPlaceholderText(_("Proxy note"))
 
         self.user_agent_edit = QTextEdit(session.custom_user_agent)
-        self.user_agent_edit.setPlaceholderText("Оставьте пустым, чтобы использовать User-Agent браузера")
+        self.user_agent_edit.setPlaceholderText(_("Leave empty to use browser default User-Agent"))
         self.user_agent_edit.setMinimumHeight(80)
 
         self.notes_edit = QTextEdit(session.notes)
-        self.notes_edit.setPlaceholderText("Комментарий")
+        self.notes_edit.setPlaceholderText(_("Comment"))
         self.notes_edit.setMinimumHeight(120)
 
         self.width_spin = QSpinBox()
@@ -232,16 +246,18 @@ class SessionSettingsDialog(QDialog):
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
         )
+        buttons.button(QDialogButtonBox.StandardButton.Save).setText(_("Save"))
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText(_("Cancel"))
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
 
         nav_layout = QHBoxLayout()
-        self.general_button = QPushButton("Основное")
-        self.profile_button = QPushButton("Профиль")
-        self.proxy_button = QPushButton("Прокси")
-        self.window_button = QPushButton("Окно")
-        self.user_agent_button = QPushButton("User-Agent")
-        self.notes_button = QPushButton("Заметки")
+        self.general_button = QPushButton(_("General"))
+        self.profile_button = QPushButton(_("Profile"))
+        self.proxy_button = QPushButton(_("Proxy"))
+        self.window_button = QPushButton(_("Window"))
+        self.user_agent_button = QPushButton(_("User-Agent"))
+        self.notes_button = QPushButton(_("Notes"))
         for button in (
             self.general_button,
             self.profile_button,
@@ -297,7 +313,7 @@ class SessionSettingsDialog(QDialog):
 
     def _load_proxies(self, selected_proxy_id: int | None) -> None:
         self.proxy_combo.clear()
-        self.proxy_combo.addItem("Без прокси", None)
+        self.proxy_combo.addItem(_("No proxy"), None)
         for proxy in self.app_service.get_proxy_configs(enabled_only=True):
             self.proxy_combo.addItem(proxy.display_name(), proxy.id)
 
@@ -320,34 +336,34 @@ class SessionSettingsDialog(QDialog):
     def _build_general_page(self) -> QWidget:
         content = QWidget()
         form = QFormLayout(content)
-        form.addRow("Стартовый URL", self.url_edit)
-        form.addRow("Браузер", self.browser_combo)
+        form.addRow(_("Start URL"), self.url_edit)
+        form.addRow(_("Browser"), self.browser_combo)
         return self._scroll_page(content)
 
     def _build_profile_page(self) -> QWidget:
         content = QWidget()
         form = QFormLayout(content)
-        form.addRow("Путь профиля", self.profile_path_edit)
+        form.addRow(_("Profile path"), self.profile_path_edit)
         return self._scroll_page(content)
 
     def _build_proxy_page(self) -> QWidget:
         content = QWidget()
         form = QFormLayout(content)
-        form.addRow("Выбранный прокси", self.proxy_combo)
-        form.addRow("Заметка", self.proxy_label_edit)
+        form.addRow(_("Selected proxy"), self.proxy_combo)
+        form.addRow(_("Proxy note"), self.proxy_label_edit)
         return self._scroll_page(content)
 
     def _build_window_page(self) -> QWidget:
         content = QWidget()
         form = QFormLayout(content)
-        form.addRow("Ширина", self.width_spin)
-        form.addRow("Высота", self.height_spin)
+        form.addRow(_("Width"), self.width_spin)
+        form.addRow(_("Height"), self.height_spin)
         return self._scroll_page(content)
 
     def _build_user_agent_page(self) -> QWidget:
         content = QWidget()
         form = QFormLayout(content)
-        form.addRow("Custom User-Agent", self.user_agent_edit)
+        form.addRow(_("Custom User-Agent"), self.user_agent_edit)
         return self._scroll_page(content)
 
     def _build_notes_page(self) -> QWidget:
@@ -371,3 +387,13 @@ class SessionSettingsDialog(QDialog):
             window_height=self.height_spin.value(),
             status=self._session.status,
         )
+
+
+def _status_label(status: str) -> str:
+    labels = {
+        "idle": _("Idle"),
+        "running": _("Running"),
+        "stopped": _("Stopped"),
+        "error": _("Error"),
+    }
+    return labels.get(status, status)

@@ -126,6 +126,14 @@ def init_db() -> None:
             )
             """
         )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS app_settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            )
+            """
+        )
         _seed_default_browser_configs(connection)
 
         count = connection.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
@@ -553,3 +561,24 @@ def update_session(session: SessionEntry) -> SessionEntry:
 def delete_session(session_id: int) -> None:
     with _connect() as connection:
         connection.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
+
+
+def get_setting(key: str, default: str = "") -> str:
+    with _connect() as connection:
+        row = connection.execute(
+            "SELECT value FROM app_settings WHERE key = ?",
+            (key,),
+        ).fetchone()
+    return row["value"] if row else default
+
+
+def set_setting(key: str, value: str) -> None:
+    with _connect() as connection:
+        connection.execute(
+            """
+            INSERT INTO app_settings (key, value)
+            VALUES (?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+            """,
+            (key, value),
+        )

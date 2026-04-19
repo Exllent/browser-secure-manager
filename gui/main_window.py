@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.app_service import AppService
+from app.i18n import _
 from gui.app_settings_dialog import AppSettingsDialog
 from gui.session_row_widget import SESSION_TABLE_COLUMNS, SessionRowWidget
 from models.browser_config import BrowserConfig
@@ -28,21 +29,22 @@ logger = logging.getLogger(__name__)
 class MainWindow(QMainWindow):
     def __init__(self, app_service: AppService) -> None:
         super().__init__()
-        self.setWindowTitle("Isolated Browser Sessions")
+        self.setWindowTitle(_("Isolated Browser Sessions"))
         self.resize(1050, 720)
 
         self.app_service = app_service
         self.rows: dict[int, SessionRowWidget] = {}
+        self.header_labels: list[QLabel] = []
 
         root = QWidget()
         root_layout = QVBoxLayout(root)
 
         toolbar = QHBoxLayout()
-        self.add_button = QPushButton("Добавить запись")
-        self.app_settings_button = QPushButton("Настройки программы")
-        self.save_all_button = QPushButton("Сохранить всё")
-        self.refresh_button = QPushButton("Обновить")
-        self.stop_all_button = QPushButton("Остановить все")
+        self.add_button = QPushButton(_("Add session"))
+        self.app_settings_button = QPushButton(_("Application settings"))
+        self.save_all_button = QPushButton(_("Save all"))
+        self.refresh_button = QPushButton(_("Refresh"))
+        self.stop_all_button = QPushButton(_("Stop all"))
         toolbar.addWidget(self.add_button)
         toolbar.addWidget(self.app_settings_button)
         toolbar.addWidget(self.save_all_button)
@@ -50,7 +52,8 @@ class MainWindow(QMainWindow):
         toolbar.addWidget(self.stop_all_button)
         toolbar.addStretch(1)
         root_layout.addLayout(toolbar)
-        root_layout.addWidget(self._build_session_header())
+        self.session_header = self._build_session_header()
+        root_layout.addWidget(self.session_header)
 
         self.list_container = QWidget()
         self.list_layout = QVBoxLayout(self.list_container)
@@ -79,11 +82,12 @@ class MainWindow(QMainWindow):
         layout.setSpacing(6)
 
         for column, (label_text, width) in enumerate(SESSION_TABLE_COLUMNS):
-            label = QLabel(label_text)
+            label = QLabel(_(label_text))
             label.setFixedWidth(width)
             label.setStyleSheet("font-weight: 600;")
             layout.addWidget(label, 0, column)
             layout.setColumnMinimumWidth(column, width)
+            self.header_labels.append(label)
 
         return header
 
@@ -97,7 +101,7 @@ class MainWindow(QMainWindow):
         session = self.app_service.create_session(
             SessionEntry(
                 id=None,
-                name="New session",
+                name=_("New session"),
                 url="about:blank",
                 browser="chrome",
                 profile_path="",
@@ -133,7 +137,7 @@ class MainWindow(QMainWindow):
             saved = self.app_service.save_session(row.to_session())
         except Exception as exc:
             logger.exception("Failed to save session")
-            QMessageBox.critical(self, "Ошибка сохранения", str(exc))
+            QMessageBox.critical(self, _("Save error"), str(exc))
             return None
 
         row.set_session(saved)
@@ -145,7 +149,7 @@ class MainWindow(QMainWindow):
         result = self.app_service.open_session(row.to_session())
         row.set_session(result.session)
         if not result.ok:
-            QMessageBox.critical(self, result.error_title or "Ошибка", result.error_message or "")
+            QMessageBox.critical(self, _(result.error_title or "Error"), result.error_message or "")
             return
 
     def delete_row(self, session: SessionEntry, row: SessionRowWidget) -> None:
@@ -176,3 +180,18 @@ class MainWindow(QMainWindow):
         browser_configs = self.app_service.get_browser_configs(enabled_only=True)
         for row in self.rows.values():
             row.set_browser_configs(browser_configs)
+        self.retranslate_ui()
+
+    def retranslate_ui(self) -> None:
+        self.setWindowTitle(_("Isolated Browser Sessions"))
+        self.add_button.setText(_("Add session"))
+        self.app_settings_button.setText(_("Application settings"))
+        self.save_all_button.setText(_("Save all"))
+        self.refresh_button.setText(_("Refresh"))
+        self.stop_all_button.setText(_("Stop all"))
+
+        for label, (label_text, _width) in zip(self.header_labels, SESSION_TABLE_COLUMNS):
+            label.setText(_(label_text))
+
+        for row in self.rows.values():
+            row.retranslate_ui()

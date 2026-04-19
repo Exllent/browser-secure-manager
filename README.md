@@ -1,43 +1,53 @@
 # Secure Browser Sessions
 
-A Python desktop application for managing isolated browser sessions through a GUI.
+A cross-platform Python desktop application for managing isolated browser sessions through a PySide6 GUI.
 
-The app lets you create browser session records, launch browsers with separate profiles, store configuration in SQLite, manage browser executables, and manage proxy lists.
-
-## Features
-
-- PySide6 GUI.
-- Browser session list management.
-- Separate browser profile path per session.
-- Support for Chrome/Chromium-based browsers, Firefox, and Safari.
-- Configurable browser executables.
-- Proxy import from CSV.
-- HTTP, SOCKS4, and SOCKS5 proxy support.
-- Asynchronous proxy testing with `QThreadPool`.
-- Bulk removal of failed proxies and proxies with ping greater than 500 ms.
-- SQLite persistence with a dedicated storage layer.
-- Clear separation between GUI, application logic, and browser backend.
+The application stores session records in SQLite, launches browsers through a replaceable browser backend, keeps browser profile directories separate per session, and provides GUI-only localization through compiled Qt translation files.
 
 ## Safety Scope
 
-This project does not implement:
+This project intentionally does not implement:
 
 - anti-detect features;
 - anti-bot bypasses;
 - Selenium hiding;
 - browser fingerprint spoofing;
 - `navigator.*`, canvas, or WebGL spoofing;
-- device, OS, or browser engine impersonation.
+- device, OS, browser engine, or user impersonation.
 
-The supported behavior is limited to regular browser launches with separate profiles, window settings, User-Agent as a normal launch setting, and proxy configuration.
+The supported browser behavior is limited to regular launches with separate browser profiles, window size settings, optional User-Agent as a normal launch setting, and proxy configuration.
 
-## Architecture
+## Features
+
+- PySide6 desktop GUI.
+- Cross-platform target: Linux, Windows, and macOS.
+- Session list with per-session settings.
+- Separate profile path per browser session.
+- Browser configuration in application settings.
+- Chrome/Chromium-based browsers, Firefox, and Safari support.
+- SQLite persistence with a dedicated storage layer.
+- App settings stored in SQLite.
+- HTTP, SOCKS4, and SOCKS5 proxy records.
+- Proxy CSV import.
+- Asynchronous proxy testing with `QThreadPool`.
+- Bulk proxy cleanup by failed test or ping greater than 500 ms.
+- Clear separation between GUI, application logic, and browser backend.
+- GUI-only localization through Django-like `_()`.
+- Compiled Qt `.qm` translations.
+- Runtime language switching after saving application settings.
+- RTL layout direction for Arabic, Persian, and Hebrew.
+- Application font fallback for multi-language UI.
+
+## Project Structure
 
 ```text
 secure_browser/
 ├── main.py
 ├── app/
-│   └── app_service.py
+│   ├── app_service.py
+│   ├── fonts.py
+│   ├── i18n.py
+│   └── i18n_strings.py
 ├── browser_backends/
 │   ├── base.py
 │   └── selenium_backend.py
@@ -51,31 +61,35 @@ secure_browser/
 │   ├── browser_config.py
 │   ├── proxy_config.py
 │   └── session_entry.py
-└── services/
-    └── proxy_tester.py
+├── services/
+│   └── proxy_tester.py
+└── translations/
+    ├── app_ru.ts
+    ├── app_ru.qm
+    └── app_<language>.ts/.qm
 ```
 
-### Layers
+## Architecture
 
 `gui/`
 
-User interface. It should not directly use SQLite, Selenium, or webdriver APIs.
+User interface only. GUI code talks to `AppService` and should not directly use SQLite, Selenium, or webdriver APIs.
 
 `app/`
 
-Application/business logic. The GUI communicates with `AppService`.
+Application layer. `AppService` owns business operations, coordinates storage, proxy testing, and the selected browser backend. GUI localization helpers and font configuration also live here.
 
 `browser_backends/`
 
-Browser backend interface and implementations. The current implementation uses Selenium.
+Browser backend interface and implementation. The current implementation uses Selenium.
 
 `db/`
 
-SQLite storage layer.
+SQLite storage layer. It owns database schema creation and CRUD functions.
 
 `services/`
 
-Supporting business logic, such as proxy testing.
+Supporting business logic, currently proxy testing.
 
 ## Replacing Selenium
 
@@ -85,23 +99,39 @@ Selenium is isolated in:
 browser_backends/selenium_backend.py
 ```
 
-To replace Selenium with another library, create a new backend implementing the interface from:
+To replace Selenium with another library, implement the `BrowserBackend` protocol from:
 
 ```text
 browser_backends/base.py
 ```
 
-Then change the backend composition in `main.py`:
+Then compose the new backend in `main.py`:
 
 ```python
 app_service = AppService(MyBrowserBackend())
 ```
 
-The GUI and core application logic should not need to change.
+The GUI and most business logic should not need to change.
+
+## Requirements
+
+- Python 3.12+
+- PySide6
+- Selenium
+- Installed browser binaries for the browsers you want to launch
+- WebDriver support for the selected browser
+
+Linux users should install broad Unicode font support for the localized UI:
+
+```bash
+sudo apt update
+sudo apt install fonts-noto fonts-noto-core fonts-noto-extra fonts-noto-cjk fonts-noto-color-emoji
+fc-cache -f -v
+```
 
 ## Installation
 
-Python 3.12+ is required.
+Linux/macOS:
 
 ```bash
 python -m venv .venv
@@ -109,7 +139,7 @@ source .venv/bin/activate
 python -m pip install -e .
 ```
 
-On Windows:
+Windows PowerShell:
 
 ```powershell
 python -m venv .venv
@@ -119,17 +149,19 @@ python -m pip install -e .
 
 ## Running
 
+From the repository:
+
 ```bash
 python main.py
 ```
 
-Or, after installing the package in editable mode:
+After editable installation:
 
 ```bash
 secure-browser-gui
 ```
 
-For console logs:
+Console entry point:
 
 ```bash
 secure-browser
@@ -147,23 +179,19 @@ You can:
 
 - auto-detect installed browsers;
 - add a browser manually;
-- choose an engine type:
+- choose a browser engine type:
   - `Chromium-based`;
   - `Firefox`;
   - `Safari`;
 - specify a browser executable path.
 
-For Opera and other Chromium-based browsers, use:
-
-```text
-Chromium-based
-```
+For Opera, Brave, Edge, Vivaldi, and other Chromium-based browsers, use `Chromium-based` and set the executable path manually if auto-detection does not find it.
 
 ## Safari
 
 Safari is supported only on macOS through `safaridriver`.
 
-Before using Safari WebDriver on macOS, you usually need to run:
+Before using Safari WebDriver on macOS, run:
 
 ```bash
 safaridriver --enable
@@ -173,21 +201,32 @@ Safari limitation: `safaridriver` does not support a separate `user-data-dir` or
 
 ## Session Settings
 
-Each row on the main screen contains:
+The main screen shows compact session rows:
 
-- id;
+- ID;
 - name;
 - status;
 - action buttons.
 
-Advanced settings are available in the session settings dialog:
+Advanced settings are in the session settings dialog:
 
 - `General`: start URL and browser;
 - `Profile`: profile path;
-- `Proxy`: selected saved proxy;
+- `Proxy`: selected saved proxy and proxy note;
 - `Window`: width and height;
 - `User-Agent`: custom User-Agent;
 - `Notes`: comments.
+
+Status values remain English machine values in SQLite:
+
+```text
+idle
+running
+stopped
+error
+```
+
+The GUI displays localized status labels.
 
 ## Proxies
 
@@ -203,17 +242,19 @@ Supported proxy types:
 - SOCKS4;
 - SOCKS5.
 
-Each proxy has:
+Each proxy record has:
 
-- name;
+- row number;
+- enabled checkbox;
+- label;
 - host/IP;
 - port;
 - protocol;
 - username;
 - password;
-- enabled flag.
+- test status.
 
-Proxy testing runs asynchronously, so the GUI should remain responsive.
+Proxy testing runs asynchronously, so the GUI remains responsive.
 
 Result colors:
 
@@ -255,28 +296,134 @@ ip,country,port,protocols
 
 After import, proxy tests are started asynchronously.
 
+## Localization
+
+Localization is GUI-only. Business logic, storage values, exceptions, and logs stay in English.
+
+The code uses a Django-like helper:
+
+```python
+from app.i18n import _
+
+button.setText(_("Add session"))
+```
+
+Translation files are stored in:
+
+```text
+translations/
+```
+
+Each supported language has:
+
+```text
+app_<code>.ts
+app_<code>.qm
+```
+
+The `.ts` file is the editable translation source. The `.qm` file is the compiled Qt translation used at runtime.
+
+To compile all translations:
+
+```bash
+pyside6-lrelease translations/app_*.ts
+```
+
+Supported language codes currently include:
+
+```text
+en, ru, es, de, zh, ja, ko, fr, ar, pl, uk, vi, pt,
+hi, bn, id, tr, it, nl, cs, ro, el, th, ms, fa, he,
+sv, no, da, fi, hu, sr, bg
+```
+
+Language selection is available in:
+
+```text
+Application Settings -> Language
+```
+
+The selected language is stored in SQLite and is applied immediately after saving settings.
+
+## Font Fallback
+
+The application configures a broad font fallback chain in:
+
+```text
+app/fonts.py
+```
+
+It prefers a readable base UI font and adds substitutions for Noto fonts covering Arabic, Hebrew, Devanagari, Bengali, Thai, CJK, Korean, Japanese, Chinese, and emoji.
+
+`main.py` also suppresses the narrow Qt logging category:
+
+```text
+qt.text.font.db=false
+```
+
+This hides noisy font database warnings without disabling other Qt logging.
+
 ## Local Data
 
-The app creates:
+The app creates local runtime data:
 
 ```text
 sessions.sqlite3
 profiles/
 ```
 
-These files are excluded from git through `.gitignore`.
+These are excluded from git through `.gitignore`.
 
-## Code Check
+## Database
+
+SQLite tables include:
+
+- `sessions`;
+- `browser_configs`;
+- `proxy_configs`;
+- `app_settings`.
+
+The storage API is intentionally small and can be replaced later with PostgreSQL-backed implementations behind the same application service boundary.
+
+## Code Checks
+
+Compile Python files:
 
 ```bash
 python -m compileall -f main.py app browser_backends models db services gui
 ```
 
+Compile translations:
+
+```bash
+pyside6-lrelease translations/app_*.ts
+```
+
+## Git Ignore Policy
+
+Tracked:
+
+- source code;
+- `.ts` translation sources;
+- compiled `.qm` translation files;
+- project metadata.
+
+Ignored:
+
+- virtual environments;
+- Python caches;
+- local SQLite databases;
+- browser profile directories;
+- logs;
+- imported/exported private CSV data;
+- IDE/editor files;
+- scratch prompt files.
+
 ## Dependencies
 
 See [pyproject.toml](pyproject.toml).
 
-Main dependencies:
+Main runtime dependencies:
 
 - PySide6;
 - Selenium.

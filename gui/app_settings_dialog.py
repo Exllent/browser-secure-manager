@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QFileDialog,
     QHBoxLayout,
+    QLabel,
     QLineEdit,
     QMessageBox,
     QPushButton,
@@ -23,6 +24,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.app_service import AppService
+from app.i18n import _, load_language
 from models.browser_config import BrowserConfig
 from models.proxy_config import ProxyConfig
 
@@ -30,7 +32,7 @@ from models.proxy_config import ProxyConfig
 class AppSettingsDialog(QDialog):
     def __init__(self, app_service: AppService, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Настройки программы")
+        self.setWindowTitle(_("Application settings"))
         self.resize(980, 620)
 
         self.app_service = app_service
@@ -41,22 +43,28 @@ class AppSettingsDialog(QDialog):
         self.thread_pool = QThreadPool.globalInstance()
         self.thread_pool.setMaxThreadCount(32)
 
-        self.browsers_button = QPushButton("Браузеры")
-        self.proxies_button = QPushButton("Прокси")
+        self.browsers_button = QPushButton(_("Browsers"))
+        self.proxies_button = QPushButton(_("Proxies"))
+        self.language_button = QPushButton(_("Language"))
         nav_layout = QHBoxLayout()
         nav_layout.addWidget(self.browsers_button)
         nav_layout.addWidget(self.proxies_button)
+        nav_layout.addWidget(self.language_button)
         nav_layout.addStretch(1)
 
         self.stack = QStackedWidget()
         self.browser_page = self._build_browser_page()
         self.proxy_page = self._build_proxy_page()
+        self.language_page = self._build_language_page()
         self.stack.addWidget(self.browser_page)
         self.stack.addWidget(self.proxy_page)
+        self.stack.addWidget(self.language_page)
 
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
         )
+        buttons.button(QDialogButtonBox.StandardButton.Save).setText(_("Save"))
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText(_("Cancel"))
 
         layout = QVBoxLayout(self)
         layout.addLayout(nav_layout)
@@ -65,6 +73,7 @@ class AppSettingsDialog(QDialog):
 
         self.browsers_button.clicked.connect(lambda: self.stack.setCurrentWidget(self.browser_page))
         self.proxies_button.clicked.connect(lambda: self.stack.setCurrentWidget(self.proxy_page))
+        self.language_button.clicked.connect(lambda: self.stack.setCurrentWidget(self.language_page))
         buttons.accepted.connect(self.save)
         buttons.rejected.connect(self.reject)
 
@@ -74,8 +83,8 @@ class AppSettingsDialog(QDialog):
         page = QWidget()
         layout = QVBoxLayout(page)
 
-        self.scan_browsers_button = QPushButton("Найти браузеры")
-        self.add_browser_button = QPushButton("Добавить вручную")
+        self.scan_browsers_button = QPushButton(_("Find browsers"))
+        self.add_browser_button = QPushButton(_("Add manually"))
         top_layout = QHBoxLayout()
         top_layout.addWidget(self.scan_browsers_button)
         top_layout.addWidget(self.add_browser_button)
@@ -100,13 +109,13 @@ class AppSettingsDialog(QDialog):
         page = QWidget()
         layout = QVBoxLayout(page)
 
-        self.add_proxy_button = QPushButton("Добавить прокси")
-        self.import_proxy_csv_button = QPushButton("Загрузить CSV")
-        self.test_all_proxies_button = QPushButton("Тестировать все")
-        self.select_all_proxies_button = QPushButton("Выбрать всё")
-        self.clear_all_proxies_button = QPushButton("Снять всё")
-        self.delete_error_proxies_button = QPushButton("Удалить с ошибками")
-        self.delete_slow_proxies_button = QPushButton("Удалить ping > 500")
+        self.add_proxy_button = QPushButton(_("Add proxy"))
+        self.import_proxy_csv_button = QPushButton(_("Load CSV"))
+        self.test_all_proxies_button = QPushButton(_("Test all"))
+        self.select_all_proxies_button = QPushButton(_("Select all"))
+        self.clear_all_proxies_button = QPushButton(_("Clear all"))
+        self.delete_error_proxies_button = QPushButton(_("Remove errors"))
+        self.delete_slow_proxies_button = QPushButton(_("Remove ping > 500"))
         top_layout = QHBoxLayout()
         top_layout.addWidget(self.add_proxy_button)
         top_layout.addWidget(self.import_proxy_csv_button)
@@ -138,6 +147,52 @@ class AppSettingsDialog(QDialog):
         self._update_proxy_cleanup_buttons()
         return page
 
+    def _build_language_page(self) -> QWidget:
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        self.language_combo = QComboBox()
+        self.language_combo.addItem("English", "en")
+        self.language_combo.addItem("Русский", "ru")
+        self.language_combo.addItem("Español", "es")
+        self.language_combo.addItem("Deutsch", "de")
+        self.language_combo.addItem("中文", "zh")
+        self.language_combo.addItem("日本語", "ja")
+        self.language_combo.addItem("한국어", "ko")
+        self.language_combo.addItem("Français", "fr")
+        self.language_combo.addItem("العربية", "ar")
+        self.language_combo.addItem("Polski", "pl")
+        self.language_combo.addItem("Українська", "uk")
+        self.language_combo.addItem("Tiếng Việt", "vi")
+        self.language_combo.addItem("Português", "pt")
+        self.language_combo.addItem("हिन्दी", "hi")
+        self.language_combo.addItem("বাংলা", "bn")
+        self.language_combo.addItem("Bahasa Indonesia", "id")
+        self.language_combo.addItem("Türkçe", "tr")
+        self.language_combo.addItem("Italiano", "it")
+        self.language_combo.addItem("Nederlands", "nl")
+        self.language_combo.addItem("Čeština", "cs")
+        self.language_combo.addItem("Română", "ro")
+        self.language_combo.addItem("Ελληνικά", "el")
+        self.language_combo.addItem("ไทย", "th")
+        self.language_combo.addItem("Bahasa Melayu", "ms")
+        self.language_combo.addItem("فارسی", "fa")
+        self.language_combo.addItem("עברית", "he")
+        self.language_combo.addItem("Svenska", "sv")
+        self.language_combo.addItem("Norsk", "no")
+        self.language_combo.addItem("Dansk", "da")
+        self.language_combo.addItem("Suomi", "fi")
+        self.language_combo.addItem("Magyar", "hu")
+        self.language_combo.addItem("Српски", "sr")
+        self.language_combo.addItem("Български", "bg")
+        language = self.app_service.get_setting("language", "en")
+        index = self.language_combo.findData(language)
+        self.language_combo.setCurrentIndex(max(index, 0))
+        layout.addWidget(self.language_combo)
+        self.language_note_label = QLabel(_("Language is applied after saving."))
+        layout.addWidget(self.language_note_label)
+        layout.addStretch(1)
+        return page
+
     def load(self) -> None:
         self._clear_browser_rows()
         self._clear_proxy_rows()
@@ -149,7 +204,7 @@ class AppSettingsDialog(QDialog):
     def scan_browsers(self) -> None:
         discovered = self.app_service.discover_installed_browsers()
         if not discovered:
-            QMessageBox.information(self, "Поиск браузеров", "Браузеры не найдены автоматически.")
+            QMessageBox.information(self, _("Find browsers"), _("No browsers were detected automatically."))
             return
 
         existing_paths = {row.to_config().executable_path for row in self.browser_rows}
@@ -166,7 +221,7 @@ class AppSettingsDialog(QDialog):
             existing_keys.add(config.key)
             added += 1
 
-        QMessageBox.information(self, "Поиск браузеров", f"Добавлено браузеров: {added}")
+        QMessageBox.information(self, _("Find browsers"), _("Browsers added: {count}").format(count=added))
 
     def add_manual_browser(self) -> None:
         key = self._unique_browser_key("browser")
@@ -174,7 +229,7 @@ class AppSettingsDialog(QDialog):
             BrowserConfig(
                 id=None,
                 key=key,
-                display_name="Новый браузер",
+                display_name="New browser",
                 browser_type="chromium",
                 executable_path="",
                 enabled=True,
@@ -185,7 +240,7 @@ class AppSettingsDialog(QDialog):
         self._add_proxy_row(
             ProxyConfig(
                 id=None,
-                label="Новый прокси",
+                label="New proxy",
                 host="",
                 port=8080,
                 proxy_type="socks5",
@@ -198,7 +253,7 @@ class AppSettingsDialog(QDialog):
     def import_proxy_csv(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
             self,
-            "Выберите CSV со списком прокси",
+            _("Choose proxy CSV file"),
             "",
             "CSV files (*.csv);;All files (*)",
         )
@@ -208,7 +263,7 @@ class AppSettingsDialog(QDialog):
         try:
             proxies = parse_proxy_csv(Path(path))
         except Exception as exc:
-            QMessageBox.critical(self, "Ошибка импорта CSV", str(exc))
+            QMessageBox.critical(self, _("CSV import error"), str(exc))
             return
 
         existing = {
@@ -228,7 +283,11 @@ class AppSettingsDialog(QDialog):
         for row in imported_rows:
             row.test_proxy()
 
-        QMessageBox.information(self, "Импорт CSV", f"Добавлено прокси: {added}. Тесты запущены.")
+        QMessageBox.information(
+            self,
+            _("CSV import"),
+            _("Added proxies: {count}. Tests started.").format(count=added),
+        )
 
     def test_all_proxies(self) -> None:
         for row in self.proxy_rows:
@@ -246,12 +305,20 @@ class AppSettingsDialog(QDialog):
     def delete_error_proxies(self) -> None:
         rows = [row for row in self.proxy_rows if row.has_test_error()]
         self._delete_proxy_rows(rows)
-        QMessageBox.information(self, "Прокси", f"Удалено прокси с ошибками: {len(rows)}")
+        QMessageBox.information(
+            self,
+            _("Proxies"),
+            _("Proxies with errors removed: {count}").format(count=len(rows)),
+        )
 
     def delete_slow_proxies(self) -> None:
         rows = [row for row in self.proxy_rows if row.has_ping_greater_than(500)]
         self._delete_proxy_rows(rows)
-        QMessageBox.information(self, "Прокси", f"Удалено прокси с ping > 500: {len(rows)}")
+        QMessageBox.information(
+            self,
+            _("Proxies"),
+            _("Proxies with ping > 500 removed: {count}").format(count=len(rows)),
+        )
 
     def save(self) -> None:
         try:
@@ -263,19 +330,22 @@ class AppSettingsDialog(QDialog):
             for row in self.browser_rows:
                 config = row.to_config()
                 if not config.display_name.strip():
-                    raise ValueError("У каждого браузера должно быть название.")
+                    raise ValueError(_("Every browser must have a name."))
                 config.key = config.key.strip() or self.app_service.make_browser_key(config.display_name)
                 self.app_service.save_browser_config(config)
 
             for row in self.proxy_rows:
                 proxy = row.to_config()
                 if not proxy.host.strip():
-                    raise ValueError("У каждого прокси должен быть host или IP.")
+                    raise ValueError(_("Every proxy must have a host or IP."))
                 if proxy.port <= 0:
-                    raise ValueError("У каждого прокси должен быть port.")
+                    raise ValueError(_("Every proxy must have a port."))
                 self.app_service.save_proxy_config(proxy)
+            language = str(self.language_combo.currentData() or "en")
+            self.app_service.set_setting("language", language)
+            load_language(language)
         except Exception as exc:
-            QMessageBox.critical(self, "Ошибка сохранения настроек", str(exc))
+            QMessageBox.critical(self, _("Settings save error"), str(exc))
             return
 
         self.accept()
@@ -369,26 +439,26 @@ class BrowserConfigRow(QWidget):
         self.enabled_check.setChecked(config.enabled)
 
         self.name_edit = QLineEdit(config.display_name)
-        self.name_edit.setPlaceholderText("Название")
+        self.name_edit.setPlaceholderText(_("Name"))
         self.name_edit.setMinimumWidth(140)
 
         self.key_edit = QLineEdit(config.key)
-        self.key_edit.setPlaceholderText("key")
+        self.key_edit.setPlaceholderText(_("Key"))
         self.key_edit.setMinimumWidth(110)
 
         self.type_combo = QComboBox()
-        self.type_combo.addItem("Chromium-based", "chromium")
+        self.type_combo.addItem(_("Chromium-based"), "chromium")
         self.type_combo.addItem("Firefox", "firefox")
         self.type_combo.addItem("Safari", "safari")
         index = self.type_combo.findData(config.normalized_type())
         self.type_combo.setCurrentIndex(max(index, 0))
 
         self.path_edit = QLineEdit(config.executable_path)
-        self.path_edit.setPlaceholderText("Путь к исполняемому файлу")
+        self.path_edit.setPlaceholderText(_("Executable path"))
         self.path_edit.setMinimumWidth(260)
 
-        self.browse_button = QPushButton("Выбрать")
-        self.delete_button = QPushButton("Удалить")
+        self.browse_button = QPushButton(_("Choose"))
+        self.delete_button = QPushButton(_("Delete"))
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(4, 4, 4, 4)
@@ -406,7 +476,7 @@ class BrowserConfigRow(QWidget):
     def pick_executable(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
             self,
-            "Выберите исполняемый файл браузера",
+            _("Choose browser executable"),
             self.path_edit.text().strip(),
         )
         if path:
@@ -470,11 +540,11 @@ class ProxyConfigRow(QWidget):
         self.enabled_check.setChecked(proxy.enabled)
 
         self.label_edit = QLineEdit(proxy.label)
-        self.label_edit.setPlaceholderText("Название")
+        self.label_edit.setPlaceholderText(_("Title"))
         self.label_edit.setMinimumWidth(130)
 
         self.host_edit = QLineEdit(proxy.host)
-        self.host_edit.setPlaceholderText("Host или IP")
+        self.host_edit.setPlaceholderText(_("Host or IP"))
         self.host_edit.setMinimumWidth(150)
 
         self.port_spin = QSpinBox()
@@ -489,21 +559,21 @@ class ProxyConfigRow(QWidget):
         self.type_combo.setCurrentIndex(max(index, 0))
 
         self.username_edit = QLineEdit(proxy.username)
-        self.username_edit.setPlaceholderText("Логин")
+        self.username_edit.setPlaceholderText(_("Username"))
         self.username_edit.setMinimumWidth(100)
 
         self.password_edit = QLineEdit(proxy.password)
-        self.password_edit.setPlaceholderText("Пароль")
+        self.password_edit.setPlaceholderText(_("Password"))
         self.password_edit.setEchoMode(QLineEdit.EchoMode.Password)
         self.password_edit.setMinimumWidth(100)
 
-        self.test_button = QPushButton("Тест")
+        self.test_button = QPushButton(_("Test"))
         self.status_label = QLineEdit()
         self.status_label.setReadOnly(True)
         self.status_label.setFixedWidth(110)
-        self._set_status("● нет теста", "#777777")
+        self._set_status(f"● {_('No test')}", "#777777")
 
-        self.delete_button = QPushButton("Удалить")
+        self.delete_button = QPushButton(_("Delete"))
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(4, 4, 4, 4)
@@ -529,7 +599,7 @@ class ProxyConfigRow(QWidget):
         if not host:
             self._last_test_ok = False
             self._last_ping_ms = None
-            self._set_status("● нет host", "#cc3333")
+            self._set_status(f"● {_('No host')}", "#cc3333")
             return
 
         self._test_generation += 1
@@ -539,7 +609,7 @@ class ProxyConfigRow(QWidget):
         self._last_test_ok = None
         self._last_ping_ms = None
         self._test_running = True
-        self._set_status("● тест...", "#777777")
+        self._set_status(f"● {_('Testing')}...", "#777777")
         self.test_button.setEnabled(False)
         self.test_state_changed.emit()
         QThreadPool.globalInstance().start(worker)
@@ -556,7 +626,7 @@ class ProxyConfigRow(QWidget):
         if not result.ok or result.elapsed_ms is None:
             self._last_test_ok = False
             self._last_ping_ms = None
-            self._set_status("● ошибка", "#cc3333")
+            self._set_status(f"● {_('Error')}", "#cc3333")
             self.status_label.setToolTip(result.message)
             self.test_state_changed.emit()
             return
@@ -610,7 +680,7 @@ def parse_proxy_csv(path: Path) -> list[ProxyConfig]:
     with path.open("r", encoding="utf-8-sig", newline="", errors="replace") as file:
         reader = csv.DictReader(file)
         if reader.fieldnames is None:
-            raise ValueError("CSV должен содержать строку заголовков.")
+            raise ValueError("CSV must contain a header row.")
 
         for index, row in enumerate(reader, start=2):
             host = _csv_value(row, "ip", "host", "address")
@@ -623,7 +693,7 @@ def parse_proxy_csv(path: Path) -> list[ProxyConfig]:
             try:
                 port = int(port_text)
             except ValueError:
-                raise ValueError(f"Некорректный port в строке {index}: {port_text}") from None
+                raise ValueError(f"Invalid port on row {index}: {port_text}") from None
 
             proxy_type = _normalize_csv_protocol(protocol)
             label = _csv_value(row, "country", "label", "name")

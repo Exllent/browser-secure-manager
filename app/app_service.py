@@ -48,16 +48,16 @@ class AppService:
         if browser_config is None or not browser_config.enabled:
             return OpenSessionResult(
                 session=saved,
-                error_title="Браузер не найден",
-                error_message=f"Браузер '{saved.browser}' не найден в настройках программы.",
+                error_title="Browser not found",
+                error_message=f"Browser '{saved.browser}' was not found in application settings.",
             )
 
         proxy_config = storage.get_proxy_config(saved.proxy_id)
         if saved.proxy_id is not None and (proxy_config is None or not proxy_config.enabled):
             return OpenSessionResult(
                 session=saved,
-                error_title="Прокси не найден",
-                error_message="Выбранный прокси не найден или отключён в настройках программы.",
+                error_title="Proxy not found",
+                error_message="The selected proxy was not found or is disabled in application settings.",
             )
 
         if proxy_config is not None:
@@ -65,10 +65,10 @@ class AppService:
             if not proxy_result.ok:
                 return OpenSessionResult(
                     session=saved,
-                    error_title="Прокси не работает",
+                    error_title="Proxy is not working",
                     error_message=(
-                        f"Прокси {proxy_config.display_name()} не прошёл проверку.\n"
-                        f"Ошибка: {proxy_result.message}"
+                        f"Proxy {proxy_config.display_name()} did not pass validation.\n"
+                        f"Error: {proxy_result.message}"
                     ),
                 )
 
@@ -79,7 +79,7 @@ class AppService:
             storage.update_session(saved)
             return OpenSessionResult(
                 session=saved,
-                error_title="Ошибка запуска браузера",
+                error_title="Browser launch error",
                 error_message=str(exc),
             )
 
@@ -125,3 +125,9 @@ class AppService:
 
     def test_proxy(self, proxy: ProxyConfig) -> ProxyTestResult:
         return test_proxy(proxy)
+
+    def get_setting(self, key: str, default: str = "") -> str:
+        return storage.get_setting(key, default)
+
+    def set_setting(self, key: str, value: str) -> None:
+        storage.set_setting(key, value)
