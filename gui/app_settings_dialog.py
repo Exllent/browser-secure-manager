@@ -4,8 +4,9 @@ import csv
 from pathlib import Path
 import re
 
-from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, Signal, Slot
+from PySide6.QtCore import QObject, QRunnable, QSize, Qt, QThreadPool, Signal, Slot
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -14,6 +15,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QListView,
     QMessageBox,
     QPushButton,
     QScrollArea,
@@ -151,6 +153,16 @@ class AppSettingsDialog(QDialog):
         page = QWidget()
         layout = QVBoxLayout(page)
         self.language_combo = QComboBox()
+        self.language_combo.setStyleSheet("QComboBox { combobox-popup: 0; }")
+        self.language_combo.setView(QListView())
+        self.language_combo.setMaxVisibleItems(8)
+        self.language_combo.setMinimumContentsLength(18)
+        self.language_combo.view().setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.language_combo.view().setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        self.language_combo.view().setUniformItemSizes(True)
+        self.language_combo.view().setMinimumHeight(216)
+        self.language_combo.view().setMaximumHeight(216)
+        self.language_combo.view().setBaseSize(QSize(0, 216))
         self.language_combo.addItem("English", "en")
         self.language_combo.addItem("Русский", "ru")
         self.language_combo.addItem("Español", "es")
