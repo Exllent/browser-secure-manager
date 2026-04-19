@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "WebRTC Leak Prevent",
+  "version": "1.0.0",
+  "description": "Prevents WebRTC IP leaks by forcing Chromium to avoid non-proxied UDP.",
+  "permissions": ["privacy"],
+  "background": {
+    "service_worker": "background.js"
+  }
+}

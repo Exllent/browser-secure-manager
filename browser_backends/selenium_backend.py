@@ -5,9 +5,11 @@ import logging
 import os
 from pathlib import Path
 import platform
+import re
 import shutil
 import subprocess
 import sys
+from typing import Any
 
 from selenium import webdriver
 from selenium.common.exceptions import WebDriverException
@@ -19,6 +21,10 @@ from models.proxy_config import ProxyConfig
 from models.session_entry import SessionEntry
 
 logger = logging.getLogger(__name__)
+
+
+def _webrtc_leak_prevent_extension_path() -> Path:
+    return Path(__file__).resolve().parents[1] / "browser_extensions" / "webrtc_leak_prevent"
 
 
 class SeleniumBrowserBackend:
@@ -118,6 +124,7 @@ class SeleniumBrowserBackend:
             options.add_argument(f"--user-agent={user_agent}")
         if proxy_config is not None:
             options.add_argument(f"--proxy-server={proxy_config.browser_proxy_url()}")
+        _configure_default_extensions(options)
         if fingerprint_config is not None:
             _configure_chromium_options(options, fingerprint_config)
 
@@ -181,6 +188,83 @@ def _effective_user_agent(
     return session.custom_user_agent.strip()
 
 
+def _build_user_agent_metadata(config: FingerprintConfig) -> dict[str, Any] | None:
+    if not config.user_agent:
+        return None
+
+    full_version = _chromium_full_version(config.user_agent)
+    major_version = full_version.split(".", 1)[0]
+    platform_name = _client_hint_platform(config)
+    if platform_name is None:
+        return None
+
+    return {
+        "brands": [
+            {"brand": "Chromium", "version": major_version},
+            {"brand": "Google Chrome", "version": major_version},
+            {"brand": "Not.A/Brand", "version": "99"},
+        ],
+        "fullVersionList": [
+            {"brand": "Chromium", "version": full_version},
+            {"brand": "Google Chrome", "version": full_version},
+            {"brand": "Not.A/Brand", "version": "99.0.0.0"},
+        ],
+        "fullVersion": full_version,
+        "platform": platform_name,
+        "platformVersion": _client_hint_platform_version(config.user_agent, platform_name),
+        "architecture": _client_hint_architecture(config),
+        "model": "",
+        "mobile": False,
+        "bitness": "64",
+        "wow64": False,
+    }
+
+
+def _chromium_full_version(user_agent: str) -> str:
+    match = re.search(r"(?:Chrome|Chromium)/([0-9]+(?:\.[0-9]+){0,3})", user_agent)
+    if not match:
+        return "134.0.0.0"
+
+    parts = match.group(1).split(".")
+    return ".".join((parts + ["0", "0", "0", "0"])[:4])
+
+
+def _client_hint_platform(config: FingerprintConfig) -> str | None:
+    user_agent = config.user_agent or ""
+    if "Macintosh" in user_agent or config.platform == "MacIntel":
+        return "macOS"
+    if "Windows NT" in user_agent or config.platform in {"Win32", "Win64"}:
+        return "Windows"
+    if "Linux" in user_agent or "X11" in user_agent or (config.platform or "").startswith("Linux"):
+        return "Linux"
+    return None
+
+
+def _client_hint_platform_version(user_agent: str, platform_name: str) -> str:
+    if platform_name == "macOS":
+        match = re.search(r"Mac OS X ([0-9_]+)", user_agent)
+        if not match:
+            return "14.0.0"
+        parts = match.group(1).replace("_", ".").split(".")
+        return ".".join((parts + ["0", "0"])[:3])
+
+    if platform_name == "Windows":
+        match = re.search(r"Windows NT ([0-9.]+)", user_agent)
+        if not match:
+            return "10.0.0"
+        parts = match.group(1).split(".")
+        return ".".join((parts + ["0"])[:3])
+
+    return ""
+
+
+def _client_hint_architecture(config: FingerprintConfig) -> str:
+    renderer = config.webgl_renderer or ""
+    if "Apple M" in renderer or "arm" in (config.platform or "").lower():
+        return "arm"
+    return "x86"
+
+
 def _configure_chromium_options(options: ChromeOptions, config: FingerprintConfig) -> None:
     if config.hide_automation:
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
@@ -198,19 +282,31 @@ def _configure_chromium_options(options: ChromeOptions, config: FingerprintConfi
         options.add_argument("--force-webrtc-ip-handling-policy=disable_non_proxied_udp")
 
 
+def _configure_default_extensions(options: ChromeOptions) -> None:
+    extension_dir = _webrtc_leak_prevent_extension_path()
+    manifest_path = extension_dir / "manifest.json"
+    if not manifest_path.is_file():
+        logger.warning("WebRTC Leak Prevent extension is missing: %s", extension_dir)
+        return
+
+    options.add_argument(f"--load-extension={extension_dir}")
+    options.add_argument("--force-webrtc-ip-handling-policy=disable_non_proxied_udp")
+
+
 def _apply_chromium_fingerprint(
     driver: webdriver.Chrome,
     config: FingerprintConfig,
 ) -> None:
     if config.user_agent:
-        driver.execute_cdp_cmd(
-            "Network.setUserAgentOverride",
-            {
-                "userAgent": config.user_agent,
-                "platform": config.platform or "",
-                "acceptLanguage": ",".join(config.spoof_languages or config.locale),
-            },
-        )
+        override: dict[str, Any] = {
+            "userAgent": config.user_agent,
+            "platform": config.platform or "",
+            "acceptLanguage": ",".join(config.spoof_languages or config.locale),
+        }
+        user_agent_metadata = _build_user_agent_metadata(config)
+        if user_agent_metadata is not None:
+            override["userAgentMetadata"] = user_agent_metadata
+        driver.execute_cdp_cmd("Network.setUserAgentOverride", override)
 
     if config.timezone:
         driver.execute_cdp_cmd("Emulation.setTimezoneOverride", {"timezoneId": config.timezone})
@@ -255,6 +351,10 @@ def _build_chromium_fingerprint_script(config: FingerprintConfig) -> str:
             }});
             """
         )
+
+    user_agent_patch = _build_user_agent_patch(config)
+    if user_agent_patch:
+        patches.append(user_agent_patch)
 
     languages = config.spoof_languages or config.locale
     if languages:
@@ -306,26 +406,7 @@ def _build_chromium_fingerprint_script(config: FingerprintConfig) -> str:
         )
 
     if config.webgl_vendor or config.webgl_renderer:
-        vendor = json.dumps(config.webgl_vendor or "Google Inc.")
-        renderer = json.dumps(config.webgl_renderer or "ANGLE")
-        patches.append(
-            f"""
-            const originalGetParameter = WebGLRenderingContext.prototype.getParameter;
-            WebGLRenderingContext.prototype.getParameter = function(parameter) {{
-                if (parameter === 37445) return {vendor};
-                if (parameter === 37446) return {renderer};
-                return originalGetParameter.call(this, parameter);
-            }};
-            if (window.WebGL2RenderingContext) {{
-                const originalGetParameter2 = WebGL2RenderingContext.prototype.getParameter;
-                WebGL2RenderingContext.prototype.getParameter = function(parameter) {{
-                    if (parameter === 37445) return {vendor};
-                    if (parameter === 37446) return {renderer};
-                    return originalGetParameter2.call(this, parameter);
-                }};
-            }}
-            """
-        )
+        patches.append(_build_webgl_patch(config))
 
     if config.spoof_touch_support:
         patches.append(
@@ -381,32 +462,293 @@ def _build_chromium_fingerprint_script(config: FingerprintConfig) -> str:
             """
         )
 
-    if config.canvas_mode in {'noise', 'fixed'}:
-        noise = 0 if config.canvas_mode == "fixed" else config.canvas_noise_level
-        patches.append(
-            f"""
-            const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
-            HTMLCanvasElement.prototype.toDataURL = function(...args) {{
-                try {{
-                    const context = this.getContext('2d');
-                    if (context) {{
-                        const imageData = context.getImageData(0, 0, this.width, this.height);
-                        const step = Math.max(1, Math.floor(1 / Math.max({noise}, 0.001)));
-                        for (let i = 0; i < imageData.data.length; i += 4 * step) {{
-                            imageData.data[i] = (imageData.data[i] + 1) % 256;
-                        }}
-                        context.putImageData(imageData, 0, 0);
-                    }}
-                }} catch (error) {{}}
-                return originalToDataURL.apply(this, args);
-            }};
-            """
-        )
+    if config.canvas_mode in {"noise", "fixed"}:
+        patches.append(_build_canvas_patch(config))
+
+    if config.font_list or config.font_spoof_count:
+        patches.append(_build_font_patch(config))
 
     if not patches:
         return ""
 
     return "'use strict';\n(() => {\n" + "\n".join(patches) + "\n})();"
+
+
+def _build_user_agent_patch(config: FingerprintConfig) -> str:
+    if not config.user_agent:
+        return ""
+
+    metadata = _build_user_agent_metadata(config)
+    if metadata is None:
+        return ""
+
+    metadata_json = json.dumps(metadata)
+    user_agent = json.dumps(config.user_agent)
+    app_version = json.dumps(config.user_agent.removeprefix("Mozilla/"))
+    return f"""
+    const secureBrowserUserAgent = {user_agent};
+    const secureBrowserUserAgentData = {metadata_json};
+
+    Object.defineProperty(Navigator.prototype, 'userAgent', {{
+        get: () => secureBrowserUserAgent,
+        configurable: true
+    }});
+
+    Object.defineProperty(Navigator.prototype, 'appVersion', {{
+        get: () => {app_version},
+        configurable: true
+    }});
+
+    Object.defineProperty(Navigator.prototype, 'vendor', {{
+        get: () => 'Google Inc.',
+        configurable: true
+    }});
+
+    const buildUserAgentData = () => {{
+        const data = {{
+            brands: secureBrowserUserAgentData.brands.map((brand) => ({{...brand}})),
+            mobile: secureBrowserUserAgentData.mobile,
+            platform: secureBrowserUserAgentData.platform,
+            getHighEntropyValues: async (hints) => {{
+                const allowed = new Set(Array.isArray(hints) ? hints : []);
+                const values = {{
+                    brands: secureBrowserUserAgentData.brands.map((brand) => ({{...brand}})),
+                    mobile: secureBrowserUserAgentData.mobile,
+                    platform: secureBrowserUserAgentData.platform
+                }};
+                for (const key of allowed) {{
+                    if (Object.prototype.hasOwnProperty.call(secureBrowserUserAgentData, key)) {{
+                        values[key] = Array.isArray(secureBrowserUserAgentData[key])
+                            ? secureBrowserUserAgentData[key].map((item) => ({{...item}}))
+                            : secureBrowserUserAgentData[key];
+                    }}
+                }}
+                return values;
+            }},
+            toJSON: () => ({{
+                brands: secureBrowserUserAgentData.brands.map((brand) => ({{...brand}})),
+                mobile: secureBrowserUserAgentData.mobile,
+                platform: secureBrowserUserAgentData.platform
+            }})
+        }};
+        return Object.freeze(data);
+    }};
+
+    Object.defineProperty(Navigator.prototype, 'userAgentData', {{
+        get: buildUserAgentData,
+        configurable: true
+    }});
+    """
+
+
+def _build_webgl_patch(config: FingerprintConfig) -> str:
+    vendor = json.dumps(config.webgl_vendor or "Google Inc.")
+    renderer = json.dumps(config.webgl_renderer or "ANGLE")
+    return f"""
+    const fingerprintWebGLDebugInfo = {{
+        UNMASKED_VENDOR_WEBGL: 37445,
+        UNMASKED_RENDERER_WEBGL: 37446
+    }};
+    const patchWebGLPrototype = (prototype) => {{
+        if (!prototype || prototype.__secureBrowserWebGLPatched) return;
+        Object.defineProperty(prototype, '__secureBrowserWebGLPatched', {{ value: true }});
+
+        const originalGetParameter = prototype.getParameter;
+        prototype.getParameter = new Proxy(originalGetParameter, {{
+            apply(target, thisArg, args) {{
+                const parameter = args[0];
+                if (parameter === 37445) return {vendor};
+                if (parameter === 37446) return {renderer};
+                return Reflect.apply(target, thisArg, args);
+            }}
+        }});
+
+        const originalGetExtension = prototype.getExtension;
+        prototype.getExtension = new Proxy(originalGetExtension, {{
+            apply(target, thisArg, args) {{
+                const name = args[0];
+                if (String(name).toLowerCase() === 'webgl_debug_renderer_info') {{
+                    return fingerprintWebGLDebugInfo;
+                }}
+                return Reflect.apply(target, thisArg, args);
+            }}
+        }});
+
+        const originalGetSupportedExtensions = prototype.getSupportedExtensions;
+        prototype.getSupportedExtensions = new Proxy(originalGetSupportedExtensions, {{
+            apply(target, thisArg, args) {{
+                const result = Reflect.apply(target, thisArg, args) || [];
+                return result.includes('WEBGL_debug_renderer_info')
+                    ? result
+                    : [...result, 'WEBGL_debug_renderer_info'];
+            }}
+        }});
+    }};
+    patchWebGLPrototype(window.WebGLRenderingContext && WebGLRenderingContext.prototype);
+    patchWebGLPrototype(window.WebGL2RenderingContext && WebGL2RenderingContext.prototype);
+    """
+
+
+def _build_canvas_patch(config: FingerprintConfig) -> str:
+    noise_level = 0.0 if config.canvas_mode == "fixed" else config.canvas_noise_level
+    noise = max(1, int(round(noise_level * 255)))
+    return f"""
+    const secureBrowserCanvasNoise = {noise};
+    const secureBrowserCanvasMode = {json.dumps(config.canvas_mode)};
+    const applyCanvasFingerprint = (imageData) => {{
+        if (!imageData || !imageData.data) return imageData;
+        const data = imageData.data;
+        const step = secureBrowserCanvasMode === 'fixed'
+            ? 32
+            : Math.max(4, Math.floor(96 / Math.max(secureBrowserCanvasNoise, 1)));
+        for (let i = 0; i < data.length; i += step * 4) {{
+            data[i] = (data[i] + secureBrowserCanvasNoise) & 255;
+            data[i + 1] = (data[i + 1] + 1) & 255;
+            data[i + 2] = (data[i + 2] + 2) & 255;
+        }}
+        return imageData;
+    }};
+
+    if (window.CanvasRenderingContext2D) {{
+        const originalGetImageData = CanvasRenderingContext2D.prototype.getImageData;
+        CanvasRenderingContext2D.prototype.getImageData = new Proxy(originalGetImageData, {{
+            apply(target, thisArg, args) {{
+                const imageData = Reflect.apply(target, thisArg, args);
+                return applyCanvasFingerprint(imageData);
+            }}
+        }});
+    }}
+
+    const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
+    HTMLCanvasElement.prototype.toDataURL = new Proxy(originalToDataURL, {{
+        apply(target, thisArg, args) {{
+            try {{
+                const context = thisArg.getContext('2d');
+                if (context) {{
+                    const imageData = context.getImageData(0, 0, thisArg.width, thisArg.height);
+                    context.putImageData(applyCanvasFingerprint(imageData), 0, 0);
+                }}
+            }} catch (error) {{}}
+            return Reflect.apply(target, thisArg, args);
+        }}
+    }});
+
+    const originalToBlob = HTMLCanvasElement.prototype.toBlob;
+    if (originalToBlob) {{
+        HTMLCanvasElement.prototype.toBlob = new Proxy(originalToBlob, {{
+            apply(target, thisArg, args) {{
+                try {{
+                    const context = thisArg.getContext('2d');
+                    if (context) {{
+                        const imageData = context.getImageData(0, 0, thisArg.width, thisArg.height);
+                        context.putImageData(applyCanvasFingerprint(imageData), 0, 0);
+                    }}
+                }} catch (error) {{}}
+                return Reflect.apply(target, thisArg, args);
+            }}
+        }});
+    }}
+    """
+
+
+def _build_font_patch(config: FingerprintConfig) -> str:
+    fonts = list(dict.fromkeys(config.font_list))
+    for index in range(config.font_spoof_count):
+        fonts.append(f"Secure UI {index + 1}")
+    fonts_json = json.dumps(fonts)
+    known_fonts_json = json.dumps(
+        sorted(
+            set(fonts)
+            | {
+                "Arial",
+                "Calibri",
+                "Cambria",
+                "Courier New",
+                "DejaVu Sans",
+                "DejaVu Serif",
+                "Helvetica",
+                "Hiragino Sans",
+                "Liberation Sans",
+                "Menlo",
+                "Monaco",
+                "Noto Sans",
+                "Osaka",
+                "Segoe UI",
+                "Tahoma",
+                "Times",
+                "Times New Roman",
+                "Ubuntu",
+                "Verdana",
+                "Yu Gothic",
+            }
+        )
+    )
+    return f"""
+    const secureBrowserFonts = new Set({fonts_json});
+    const secureBrowserKnownFonts = new Set({known_fonts_json});
+    const normalizeFontFamily = (value) => String(value || '')
+        .split(',')
+        .map((part) => part.trim().replace(/^['"]|['"]$/g, ''))
+        .filter(Boolean);
+    const profileHasFont = (families) => families.some((family) => secureBrowserFonts.has(family));
+    const hasMaskedSystemFont = (families) => families.some((family) =>
+        secureBrowserKnownFonts.has(family) && !secureBrowserFonts.has(family)
+    );
+    const replaceMaskedFonts = (fontValue) => {{
+        let result = String(fontValue || '');
+        for (const family of secureBrowserKnownFonts) {{
+            if (secureBrowserFonts.has(family)) continue;
+            const escaped = family.replace(/[.*+?^${{}}()|[\\]\\\\]/g, '\\\\$&');
+            result = result.replace(new RegExp(`(["']?)${{escaped}}\\\\1`, 'g'), 'sans-serif');
+        }}
+        return result;
+    }};
+
+    if (document.fonts && document.fonts.check) {{
+        const originalFontCheck = document.fonts.check.bind(document.fonts);
+        document.fonts.check = (font, text) => {{
+            const families = normalizeFontFamily(font);
+            if (profileHasFont(families)) return true;
+            if (hasMaskedSystemFont(families)) return false;
+            return originalFontCheck(font, text);
+        }};
+    }}
+
+    window.queryLocalFonts = async () => Array.from(secureBrowserFonts).map((family) => ({{
+        family,
+        fullName: family,
+        postscriptName: family.replace(/\\s+/g, '-'),
+        style: 'Regular'
+    }}));
+
+    if (window.CanvasRenderingContext2D) {{
+        const originalMeasureText = CanvasRenderingContext2D.prototype.measureText;
+        CanvasRenderingContext2D.prototype.measureText = new Proxy(originalMeasureText, {{
+            apply(target, thisArg, args) {{
+                const families = normalizeFontFamily(thisArg.font);
+                if (hasMaskedSystemFont(families)) {{
+                    const originalFont = thisArg.font;
+                    try {{
+                        thisArg.font = replaceMaskedFonts(originalFont);
+                        return Reflect.apply(target, thisArg, args);
+                    }} finally {{
+                        thisArg.font = originalFont;
+                    }}
+                }}
+
+                const metrics = Reflect.apply(target, thisArg, args);
+                if (!profileHasFont(families)) return metrics;
+                const widthOffset = families.join('').length % 7 / 100;
+                return new Proxy(metrics, {{
+                    get(metricTarget, property, receiver) {{
+                        if (property === 'width') return Reflect.get(metricTarget, property, receiver) + widthOffset;
+                        return Reflect.get(metricTarget, property, receiver);
+                    }}
+                }});
+            }}
+        }});
+    }}
+    """
 
 
 def _browser_binary_from_config(
