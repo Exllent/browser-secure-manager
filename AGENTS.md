@@ -221,7 +221,7 @@ User-Agent belongs to fingerprint settings, not session settings.
 Fingerprint application:
 - `selenium_backend.py` passes selected `FingerprintConfig` into Chromium setup.
 - `browser_backends/fingerprint/chromium.py` applies Chromium options, writes a generated extension into the profile, and applies CDP overrides.
-- Individual fingerprint patch builders live in separate files:
+- Individual fingerprint Python builders live in separate files:
   - `audio.py`
   - `canvas.py`
   - `content_filter.py`
@@ -233,6 +233,22 @@ Fingerprint application:
   - `webgl.py`
   - `workers.py`
   - `utils.py`
+
+Large JavaScript patch bodies live under `browser_backends/fingerprint/js/`.
+`browser_backends/fingerprint/templates.py` is the only helper that reads these files and injects dynamic data. Prefer one JSON config object placeholder named `__SECURE_BROWSER_CONFIG__` inside JS templates instead of ad-hoc string formatting. This avoids breaking JavaScript braces, regular expressions, and template strings.
+
+Current JS templates:
+- `audio.js`
+- `canvas.js`
+- `content_filter.js`
+- `features_core.js`
+- `fonts.js`
+- `headless.js`
+- `webgl.js`
+- `worker_fingerprint.js`
+- `worker_wrapper.js`
+
+Keep Python builders responsible for deciding whether a patch is enabled and for deriving dynamic values from `FingerprintConfig`; keep stable JavaScript behavior in the `.js` templates.
 
 Current fingerprint settings include:
 - automation/headless/plugin hiding
@@ -258,6 +274,7 @@ If adding a fingerprint setting, update all of these together:
 - `models/fingerprint_generator.py` if generated profiles should include it.
 - `gui/fingerprint_config_dialog.py`.
 - The relevant builder in `browser_backends/fingerprint/`.
+- The relevant JS template in `browser_backends/fingerprint/js/` when browser-side behavior changes.
 - Storage/tests.
 
 Feature Detection has its own file: `browser_backends/fingerprint/features_detection.py`.

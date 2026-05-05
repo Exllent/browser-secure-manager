@@ -8,6 +8,7 @@ from unittest import mock
 
 from selenium.webdriver.chrome.options import Options as ChromeOptions
 
+from browser_backends.fingerprint.templates import JS_DIR
 from browser_backends import selenium_backend as selenium_backend_module
 from browser_backends.selenium_backend import (
     SeleniumBrowserBackend,
@@ -154,6 +155,26 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
         self.assertIn("HTMLElement.prototype, 'offsetHeight'", script)
         self.assertIn("Element.prototype.getBoundingClientRect", script)
         self.assertIn("Element.prototype.getClientRects", script)
+        self.assertNotIn("__SECURE_BROWSER_CONFIG__", script)
+        self.assertNotIn("__SECURE_BROWSER_WORKER_SCRIPT__", script)
+
+    def test_fingerprint_js_templates_are_present(self) -> None:
+        expected_templates = {
+            "audio.js",
+            "canvas.js",
+            "content_filter.js",
+            "features_core.js",
+            "fonts.js",
+            "headless.js",
+            "webgl.js",
+            "worker_fingerprint.js",
+            "worker_wrapper.js",
+        }
+
+        self.assertEqual(
+            expected_templates,
+            {path.name for path in JS_DIR.glob("*.js")},
+        )
 
     def test_script_contains_headless_audio_and_content_filter_patches(self) -> None:
         script = _build_chromium_fingerprint_script(FingerprintConfig())
