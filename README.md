@@ -15,7 +15,7 @@ This project intentionally does not implement:
 - `navigator.*`, canvas, or WebGL spoofing;
 - device, OS, browser engine, or user impersonation.
 
-The supported browser behavior is limited to regular launches with separate browser profiles, window size settings, optional User-Agent as a normal launch setting, and proxy configuration.
+The supported browser behavior is limited to regular launches with separate browser profiles, window size settings, optional User-Agent through fingerprint profiles, and proxy configuration.
 
 ## Features
 
@@ -50,13 +50,23 @@ secure_browser/
 │   └── i18n_strings.py
 ├── browser_backends/
 │   ├── base.py
+│   ├── browser_discovery.py
+│   ├── chromium_extensions.py
+│   ├── fingerprint/
 │   └── selenium_backend.py
 ├── db/
 │   └── storage.py
 ├── gui/
 │   ├── app_settings_dialog.py
+│   ├── browser_config_row.py
+│   ├── fingerprint_config_dialog.py
+│   ├── fingerprint_profile_row.py
 │   ├── main_window.py
-│   └── session_row_widget.py
+│   ├── proxy_config_row.py
+│   ├── proxy_csv.py
+│   ├── session_row_widget.py
+│   ├── session_settings_dialog.py
+│   └── session_status.py
 ├── models/
 │   ├── browser_config.py
 │   ├── proxy_config.py
@@ -199,9 +209,11 @@ Advanced settings are in the session settings dialog:
 - `General`: start URL and browser;
 - `Profile`: profile path;
 - `Proxy`: selected saved proxy and proxy note;
+- `Fingerprint`: selected saved fingerprint profile;
 - `Window`: width and height;
-- `User-Agent`: custom User-Agent;
 - `Notes`: comments.
+
+User-Agent is configured inside application-level fingerprint settings, not in the per-session settings dialog.
 
 Status values remain English machine values in SQLite:
 

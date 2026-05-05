@@ -1,20 +1,125 @@
 from __future__ import annotations
 
 import json
+import tempfile
 import unittest
+from pathlib import Path
+from unittest import mock
 
 from selenium.webdriver.chrome.options import Options as ChromeOptions
 
+from browser_backends import selenium_backend as selenium_backend_module
 from browser_backends.selenium_backend import (
+    SeleniumBrowserBackend,
     _build_chromium_fingerprint_script,
     _build_user_agent_metadata,
+    _configure_chromium_fingerprint_extension,
     _configure_default_extensions,
     _webrtc_leak_prevent_extension_path,
 )
+from models.browser_config import BrowserConfig
 from models.fingerprint_config import FingerprintConfig
+from models.session_entry import SessionEntry
 
 
 class SeleniumFingerprintScriptTest(unittest.TestCase):
+    def test_chromium_options_use_fingerprint_user_agent(self) -> None:
+        user_agent = (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/134.0.0.0 Safari/537.36"
+        )
+        session = SessionEntry(
+            id=1,
+            name="Session",
+            url="about:blank",
+            browser="chrome",
+            profile_path="profile",
+            custom_user_agent="Legacy session User-Agent",
+        )
+        browser_config = BrowserConfig(
+            id=None,
+            key="chrome",
+            display_name="Chrome / Chromium",
+            browser_type="chromium",
+        )
+        driver = mock.Mock()
+
+        with tempfile.TemporaryDirectory() as profile_dir:
+            with (
+                mock.patch.object(
+                    selenium_backend_module,
+                    "_browser_binary_from_config",
+                    return_value=None,
+                ),
+                mock.patch.object(selenium_backend_module, "_configure_default_extensions"),
+                mock.patch.object(
+                    selenium_backend_module,
+                    "_configure_chromium_fingerprint_extension",
+                ),
+                mock.patch.object(selenium_backend_module, "_apply_chromium_fingerprint"),
+                mock.patch.object(
+                    selenium_backend_module.webdriver,
+                    "Chrome",
+                    return_value=driver,
+                ) as chrome_mock,
+            ):
+                SeleniumBrowserBackend._open_chromium(
+                    session,
+                    browser_config,
+                    Path(profile_dir),
+                    proxy_config=None,
+                    fingerprint_config=FingerprintConfig(user_agent=user_agent),
+                )
+
+        options = chrome_mock.call_args.kwargs["options"]
+        self.assertIn(f"--user-agent={user_agent}", options.arguments)
+        self.assertNotIn("--user-agent=Legacy session User-Agent", options.arguments)
+
+    def test_chromium_options_ignore_legacy_session_user_agent_without_fingerprint(self) -> None:
+        session = SessionEntry(
+            id=1,
+            name="Session",
+            url="about:blank",
+            browser="chrome",
+            profile_path="profile",
+            custom_user_agent="Legacy session User-Agent",
+        )
+        browser_config = BrowserConfig(
+            id=None,
+            key="chrome",
+            display_name="Chrome / Chromium",
+            browser_type="chromium",
+        )
+        driver = mock.Mock()
+
+        with tempfile.TemporaryDirectory() as profile_dir:
+            with (
+                mock.patch.object(
+                    selenium_backend_module,
+                    "_browser_binary_from_config",
+                    return_value=None,
+                ),
+                mock.patch.object(selenium_backend_module, "_configure_default_extensions"),
+                mock.patch.object(
+                    selenium_backend_module.webdriver,
+                    "Chrome",
+                    return_value=driver,
+                ) as chrome_mock,
+            ):
+                SeleniumBrowserBackend._open_chromium(
+                    session,
+                    browser_config,
+                    Path(profile_dir),
+                    proxy_config=None,
+                    fingerprint_config=None,
+                )
+
+        options = chrome_mock.call_args.kwargs["options"]
+        self.assertFalse(
+            any(argument.startswith("--user-agent=") for argument in options.arguments)
+        )
+
     def test_script_contains_canvas_webgl_and_font_patches(self) -> None:
         script = _build_chromium_fingerprint_script(
             FingerprintConfig(
@@ -27,21 +132,90 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
             )
         )
 
-        self.assertIn("CanvasRenderingContext2D.prototype.getImageData", script)
+        self.assertIn("CanvasRenderingContext2D.prototype", script)
+        self.assertIn("prototype.getImageData", script)
+        self.assertIn("OffscreenCanvasRenderingContext2D", script)
         self.assertIn("HTMLCanvasElement.prototype.toDataURL", script)
         self.assertIn("HTMLCanvasElement.prototype.toBlob", script)
+        self.assertIn("OffscreenCanvas.prototype.convertToBlob", script)
         self.assertIn("WEBGL_debug_renderer_info", script)
         self.assertIn("WebGLRenderingContext", script)
         self.assertIn("secureBrowserWeakWebGLNoise", script)
         self.assertIn("prototype.readPixels", script)
         self.assertIn("noisyWebGLCanvasDataURL", script)
-        self.assertIn("window.queryLocalFonts", script)
-        self.assertIn("document.fonts.check", script)
+        self.assertIn("queryLocalFonts", script)
+        self.assertIn("Object.getPrototypeOf(document.fonts)", script)
+        self.assertIn("stripFontShorthand", script)
         self.assertIn("CanvasRenderingContext2D.prototype.measureText", script)
+        self.assertIn("secureBrowserPatchWorkerConstructor('Worker')", script)
+        self.assertIn("secureBrowserPatchWorkerConstructor('SharedWorker')", script)
+        self.assertIn("secureBrowserWorkerFingerprintScript", script)
         self.assertIn("HTMLElement.prototype, 'offsetWidth'", script)
         self.assertIn("HTMLElement.prototype, 'offsetHeight'", script)
         self.assertIn("Element.prototype.getBoundingClientRect", script)
         self.assertIn("Element.prototype.getClientRects", script)
+
+    def test_script_contains_headless_audio_and_content_filter_patches(self) -> None:
+        script = _build_chromium_fingerprint_script(FingerprintConfig())
+
+        self.assertIn("secureBrowserStripHeadless", script)
+        self.assertIn("secureBrowserAudioNoiseSeed", script)
+        self.assertIn("AudioBuffer.prototype.getChannelData", script)
+        self.assertIn("AnalyserNode.prototype", script)
+        self.assertIn("secureBrowserAdBlockBaitPattern", script)
+        self.assertIn("window.getComputedStyle", script)
+        self.assertIn("patchAdBlockMetric", script)
+
+    def test_headless_audio_and_content_filter_patches_can_be_disabled(self) -> None:
+        script = _build_chromium_fingerprint_script(
+            FingerprintConfig(
+                hide_headless=False,
+                audio_noise=False,
+                hide_adblock_signs=False,
+            )
+        )
+
+        self.assertNotIn("secureBrowserStripHeadless", script)
+        self.assertNotIn("secureBrowserAudioNoiseSeed", script)
+        self.assertNotIn("secureBrowserAdBlockBaitPattern", script)
+
+    def test_script_contains_features_detection_patch(self) -> None:
+        script = _build_chromium_fingerprint_script(FingerprintConfig())
+
+        self.assertIn("secureBrowserFeatureDetectionProfile", script)
+        self.assertIn("Navigator.prototype", script)
+        self.assertIn("'pdfViewerEnabled'", script)
+        self.assertIn("'cookieEnabled'", script)
+        self.assertIn("Navigator.prototype.javaEnabled", script)
+        self.assertIn("window.chrome", script)
+        self.assertIn("patchModernizrResults", script)
+        self.assertIn("Object.entries(stableResults)", script)
+        self.assertIn("HTMLAudioElement.prototype", script)
+        self.assertIn("HTMLVideoElement.prototype", script)
+        self.assertIn("CSS.supports", script)
+        self.assertIn("localstorage: true", script)
+        self.assertIn("peerconnection: secureBrowserFeatureDetectionProfile.webrtc", script)
+        self.assertIn("RTCPeerConnection", script)
+        self.assertIn("Navigator.prototype, 'maxTouchPoints'", script)
+        self.assertIn("Navigator.prototype, 'connection'", script)
+        self.assertIn("Navigator.prototype.getBattery", script)
+        self.assertIn("navigator.permissions.query", script)
+
+    def test_features_detection_patch_can_be_disabled(self) -> None:
+        script = _build_chromium_fingerprint_script(
+            FingerprintConfig(
+                spoof_feature_detection=False,
+                spoof_touch_support=False,
+                spoof_connection=False,
+                spoof_permissions=False,
+                spoof_battery=False,
+            )
+        )
+
+        self.assertNotIn("secureBrowserFeatureDetectionProfile", script)
+        self.assertNotIn("patchModernizrResults", script)
+        self.assertNotIn("'pdfViewerEnabled'", script)
+        self.assertNotIn("Navigator.prototype.getBattery", script)
 
     def test_script_contains_client_hints_patch_for_macos_fingerprint(self) -> None:
         config = FingerprintConfig(
@@ -84,6 +258,34 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
             "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
             options.arguments,
         )
+
+    def test_fingerprint_extension_is_loaded_with_webrtc_extension(self) -> None:
+        profile_dir = Path(tempfile.mkdtemp())
+        options = ChromeOptions()
+        _configure_default_extensions(options)
+        _configure_chromium_fingerprint_extension(
+            options,
+            profile_dir,
+            FingerprintConfig(
+                canvas_mode="noise",
+                webgl_vendor="Google Inc. (NVIDIA)",
+                webgl_renderer="ANGLE (NVIDIA)",
+                font_list=["Arial"],
+            ),
+        )
+
+        extension_dir = profile_dir / "secure_browser_fingerprint_extension"
+        self.assertTrue((extension_dir / "manifest.json").is_file())
+        self.assertTrue((extension_dir / "fingerprint.js").is_file())
+
+        load_extension_args = [
+            argument
+            for argument in options.arguments
+            if argument.startswith("--load-extension=")
+        ]
+        self.assertEqual(len(load_extension_args), 1)
+        self.assertIn(str(_webrtc_leak_prevent_extension_path()), load_extension_args[0])
+        self.assertIn(str(extension_dir), load_extension_args[0])
 
 
 if __name__ == "__main__":

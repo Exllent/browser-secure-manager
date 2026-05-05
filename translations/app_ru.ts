@@ -46,9 +46,6 @@
     <message><source>Proxy note</source><translation>Заметка прокси</translation></message>
     <message><source>Width</source><translation>Ширина</translation></message>
     <message><source>Height</source><translation>Высота</translation></message>
-    <message><source>Custom User-Agent</source><translation>Пользовательский User-Agent</translation></message>
-    <message><source>Leave empty to use browser default User-Agent</source><translation>Оставьте пустым, чтобы использовать User-Agent браузера</translation></message>
-    <message><source>When a fingerprint is selected, its User-Agent has priority.</source><translation>Если выбран цифровой отпечаток, его User-Agent имеет приоритет.</translation></message>
     <message><source>Comment</source><translation>Комментарий</translation></message>
     <message><source>Browser not found</source><translation>Браузер не найден</translation></message>
     <message><source>Proxy not found</source><translation>Прокси не найден</translation></message>
@@ -113,6 +110,18 @@
     <message><source>Generated fingerprint</source><translation>Сгенерированный цифровой отпечаток</translation></message>
     <message><source>New fingerprint</source><translation>Новый цифровой отпечаток</translation></message>
     <message><source>Fingerprint settings</source><translation>Настройки цифрового отпечатка</translation></message>
+    <message><source>Automation / Identity</source><translation>Автоматизация / идентичность</translation></message>
+    <message><source>User-Agent / Locale</source><translation>User-Agent / локаль</translation></message>
+    <message><source>Canvas / WebGL</source><translation>Canvas / WebGL</translation></message>
+    <message><source>Audio / Fonts</source><translation>Audio / шрифты</translation></message>
+    <message><source>Timezone / Geolocation</source><translation>Часовой пояс / геолокация</translation></message>
+    <message><source>WebRTC</source><translation>WebRTC</translation></message>
+    <message><source>Hardware / Device</source><translation>Оборудование / устройство</translation></message>
+    <message><source>TLS / Network</source><translation>TLS / сеть</translation></message>
+    <message><source>Feature Detection</source><translation>Feature Detection</translation></message>
+    <message><source>Content Filter</source><translation>Content Filter</translation></message>
+    <message><source>Custom JavaScript</source><translation>Пользовательский JavaScript</translation></message>
+    <message><source>TLS profile requires an external proxy or browser network stack support.</source><translation>TLS-профиль требует внешний прокси или поддержку сетевого стека браузера.</translation></message>
     <message><source>Hide automation</source><translation>Скрывать автоматизацию</translation></message>
     <message><source>Hide headless</source><translation>Скрывать headless</translation></message>
     <message><source>Spoof plugins</source><translation>Подменять plugins</translation></message>
@@ -139,6 +148,7 @@
     <message><source>Spoof touch support</source><translation>Подменять touch support</translation></message>
     <message><source>Spoof connection</source><translation>Подменять connection</translation></message>
     <message><source>Spoof permissions</source><translation>Подменять permissions</translation></message>
+    <message><source>Spoof feature detection</source><translation>Подменять feature detection</translation></message>
     <message><source>Hide adblock signs</source><translation>Скрывать признаки adblock</translation></message>
     <message><source>Spoof battery</source><translation>Подменять battery</translation></message>
     <message><source>Separate scripts with |</source><translation>Разделяйте скрипты символом |</translation></message>

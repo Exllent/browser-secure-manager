@@ -156,6 +156,7 @@ def generate_fingerprint_config() -> FingerprintConfig:
         spoof_touch_support=True,
         spoof_connection=True,
         spoof_permissions=True,
+        spoof_feature_detection=True,
         hide_adblock_signs=True,
         spoof_battery=True,
     )

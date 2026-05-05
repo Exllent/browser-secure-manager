@@ -36,6 +36,7 @@ class FingerprintConfigTest(unittest.TestCase):
     def test_invalid_value_types_are_reported(self) -> None:
         config = FingerprintConfig(
             hide_automation="yes",  # type: ignore[arg-type]
+            spoof_feature_detection="yes",  # type: ignore[arg-type]
             canvas_noise_level="high",  # type: ignore[arg-type]
             font_spoof_count=1.5,  # type: ignore[arg-type]
             hardware_concurrency="eight",  # type: ignore[arg-type]
@@ -48,6 +49,7 @@ class FingerprintConfigTest(unittest.TestCase):
         errors = config.validate()
 
         self.assertIn("hide_automation must be a boolean", errors)
+        self.assertIn("spoof_feature_detection must be a boolean", errors)
         self.assertIn("canvas_noise_level must be a number", errors)
         self.assertIn("font_spoof_count must be an integer", errors)
         self.assertIn("hardware_concurrency must be an integer", errors)
@@ -106,6 +108,7 @@ class FingerprintConfigTest(unittest.TestCase):
         self.assertEqual(data["locale"], ["ru-RU"])
         self.assertEqual(data["geolocation"], (55.75, 37.62))
         self.assertEqual(data["canvas_mode"], "noise")
+        self.assertTrue(data["spoof_feature_detection"])
 
     def test_user_agent_consistency_is_validated(self) -> None:
         errors = FingerprintConfig(

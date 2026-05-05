@@ -30,6 +30,7 @@ BOOLEAN_FIELDS = (
     "spoof_touch_support",
     "spoof_connection",
     "spoof_permissions",
+    "spoof_feature_detection",
     "hide_adblock_signs",
     "spoof_battery",
 )
@@ -86,6 +87,7 @@ class FingerprintConfig:
     spoof_touch_support: bool = True  # navigator.maxTouchPoints
     spoof_connection: bool = True  # navigator.connection
     spoof_permissions: bool = True  # navigator.permissions.query
+    spoof_feature_detection: bool = True  # стабильный профиль feature-detection API
 
     # === Content Filter / AdBlock ===
     hide_adblock_signs: bool = True  # скрыть признаки блокировщиков
