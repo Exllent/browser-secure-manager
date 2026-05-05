@@ -12,6 +12,7 @@ from models.fingerprint_config import FingerprintConfig
 from models.proxy_config import ProxyConfig
 from models.session_entry import SessionEntry
 
+from .chromium_bookmarks import ensure_chromium_default_bookmarks
 from .browser_discovery import (
     _browser_binary_from_config,
     _chromium_candidates,
@@ -61,6 +62,7 @@ class SeleniumBrowserBackend:
         self.close_session(session.id)
         profile_dir = Path(session.profile_path).expanduser()
         profile_dir.mkdir(parents=True, exist_ok=True)
+        ensure_chromium_default_bookmarks(profile_dir)
 
         logger.info(
             "Opening Chromium session %s with %s profile %s",
