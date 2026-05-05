@@ -4,6 +4,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QDialogButtonBox,
+    QFileDialog,
     QFormLayout,
     QHBoxLayout,
     QLabel,
@@ -44,6 +45,8 @@ class SessionSettingsDialog(QDialog):
 
         self.profile_path_edit = QLineEdit(session.profile_path)
         self.profile_path_edit.setPlaceholderText("profiles/session_<id>")
+        self.choose_profile_path_button = QPushButton(_("Choose"))
+        self.choose_profile_path_button.clicked.connect(self.choose_profile_path)
 
         self.proxy_combo = QComboBox()
         self._load_proxies(session.proxy_id)
@@ -179,8 +182,20 @@ class SessionSettingsDialog(QDialog):
     def _build_profile_page(self) -> QWidget:
         content = QWidget()
         form = QFormLayout(content)
-        form.addRow(_("Profile path"), self.profile_path_edit)
+        profile_layout = QHBoxLayout()
+        profile_layout.addWidget(self.profile_path_edit, 1)
+        profile_layout.addWidget(self.choose_profile_path_button)
+        form.addRow(_("Profile path"), profile_layout)
         return self._scroll_page(content)
+
+    def choose_profile_path(self) -> None:
+        directory = QFileDialog.getExistingDirectory(
+            self,
+            _("Choose profile folder"),
+            self.profile_path_edit.text().strip(),
+        )
+        if directory:
+            self.profile_path_edit.setText(directory)
 
     def _build_proxy_page(self) -> QWidget:
         content = QWidget()

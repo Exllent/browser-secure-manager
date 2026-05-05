@@ -9,8 +9,11 @@ from PySide6.QtWidgets import QApplication
 from app.app_service import AppService
 from app.fonts import configure_application_fonts
 from app.i18n import load_language
+from app.logging_config import configure_logging
 from browser_backends.selenium_backend import SeleniumBrowserBackend
 from gui.main_window import MainWindow
+
+logger = logging.getLogger(__name__)
 
 
 def configure_qt_logging() -> None:
@@ -24,25 +27,27 @@ def configure_qt_logging() -> None:
     )
 
 
-def configure_logging() -> None:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    )
-
-
 def main() -> int:
     configure_qt_logging()
     configure_logging()
-    app_service = AppService(SeleniumBrowserBackend())
-    app_service.init_storage()
+    logger.info("Secure Browser starting")
+    try:
+        app_service = AppService(SeleniumBrowserBackend())
+        app_service.init_storage()
 
-    app = QApplication(sys.argv)
-    configure_application_fonts(app)
-    load_language(app_service.get_setting("language", "en"))
-    window = MainWindow(app_service)
-    window.show()
-    return app.exec()
+        app = QApplication(sys.argv)
+        configure_application_fonts(app)
+        language = app_service.get_setting("language", "en")
+        if not load_language(language):
+            logger.warning("Failed to load language '%s'; using English", language)
+        window = MainWindow(app_service)
+        window.show()
+        exit_code = app.exec()
+        logger.info("Secure Browser stopped with exit code %s", exit_code)
+        return exit_code
+    except Exception:
+        logger.critical("Secure Browser failed with an unhandled exception", exc_info=True)
+        raise
 
 
 if __name__ == "__main__":

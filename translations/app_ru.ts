@@ -10,6 +10,17 @@
     <message><source>Add session</source><translation>Добавить запись</translation></message>
     <message><source>Application settings</source><translation>Настройки программы</translation></message>
     <message><source>Ask before deleting</source><translation>Спрашивать перед удалением</translation></message>
+    <message><source>Export all logs</source><translation>Экспортировать все логи</translation></message>
+    <message><source>Export error logs</source><translation>Экспортировать логи ошибок</translation></message>
+    <message><source>Export logs</source><translation>Экспорт логов</translation></message>
+    <message><source>Log export error</source><translation>Ошибка экспорта логов</translation></message>
+    <message><source>Log file exported: {path}</source><translation>Файл логов экспортирован: {path}</translation></message>
+    <message><source>Load backup</source><translation>Загрузить бэкап</translation></message>
+    <message><source>Save backup</source><translation>Сохранить бэкап</translation></message>
+    <message><source>Backup error</source><translation>Ошибка бэкапа</translation></message>
+    <message><source>Backup file saved: {path}</source><translation>Файл бэкапа сохранён: {path}</translation></message>
+    <message><source>Loading a full backup replaces current data. Session backups add one session. Continue?</source><translation>Загрузка полного бэкапа заменит текущие данные. Бэкап сессии добавит одну сессию. Продолжить?</translation></message>
+    <message><source>Backup loaded: {sessions} sessions, {proxies} proxies, {fingerprints} fingerprints.</source><translation>Бэкап загружен: сессий: {sessions}, прокси: {proxies}, цифровых отпечатков: {fingerprints}.</translation></message>
     <message><source>Save all</source><translation>Сохранить всё</translation></message>
     <message><source>Stop all</source><translation>Остановить все</translation></message>
     <message><source>ID</source><translation>ID</translation></message>
@@ -38,6 +49,7 @@
     <message><source>Start URL</source><translation>Стартовый URL</translation></message>
     <message><source>Browser</source><translation>Браузер</translation></message>
     <message><source>Profile path</source><translation>Путь профиля</translation></message>
+    <message><source>Choose profile folder</source><translation>Выберите папку профиля</translation></message>
     <message><source>Selected proxy</source><translation>Выбранный прокси</translation></message>
     <message><source>No proxy</source><translation>Без прокси</translation></message>
     <message><source>Selected fingerprint</source><translation>Выбранный цифровой отпечаток</translation></message>
@@ -60,6 +72,15 @@
     <message><source>Fingerprints</source><translation>Цифровые отпечатки</translation></message>
     <message><source>Language</source><translation>Язык</translation></message>
     <message><source>Language is applied after saving.</source><translation>Язык применяется после сохранения.</translation></message>
+    <message><source>Keep deleted session profiles</source><translation>Хранить профили удалённых сессий</translation></message>
+    <message><source>Profile cache retention</source><translation>Срок хранения кэша профилей</translation></message>
+    <message><source>1 day</source><translation>1 день</translation></message>
+    <message><source>3 days</source><translation>3 дня</translation></message>
+    <message><source>7 days</source><translation>7 дней</translation></message>
+    <message><source>30 days</source><translation>30 дней</translation></message>
+    <message><source>90 days</source><translation>90 дней</translation></message>
+    <message><source>120 days</source><translation>120 дней</translation></message>
+    <message><source>Forever</source><translation>Навсегда</translation></message>
     <message><source>Find browsers</source><translation>Найти браузеры</translation></message>
     <message><source>Add manually</source><translation>Добавить вручную</translation></message>
     <message><source>Add proxy</source><translation>Добавить прокси</translation></message>

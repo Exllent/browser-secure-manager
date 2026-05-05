@@ -84,9 +84,11 @@ class SeleniumBrowserBackend:
             raise
 
         self._drivers[session.id] = driver
+        logger.info("Navigating session %s to %s", session.id, session.url)
         driver.get(session.url)
         if fingerprint_config is not None:
             for script in fingerprint_config.custom_js_after_load:
+                logger.info("Executing post-load fingerprint script for session %s", session.id)
                 driver.execute_script(script)
 
     def close_session(self, session_id: int) -> None:
@@ -148,18 +150,23 @@ class SeleniumBrowserBackend:
         )
         if browser_binary is not None:
             options.binary_location = str(browser_binary)
+        logger.info("Preparing Chromium options for session %s", session.id)
         options.add_argument(f"--user-data-dir={profile_dir}")
         options.add_argument(f"--window-size={session.window_width},{session.window_height}")
         user_agent = _effective_user_agent(fingerprint_config)
         if user_agent:
+            logger.info("Applying User-Agent override for session %s", session.id)
             options.add_argument(f"--user-agent={user_agent}")
         if proxy_config is not None:
+            logger.info("Applying proxy %s for session %s", proxy_config.display_name(), session.id)
             options.add_argument(f"--proxy-server={proxy_config.browser_proxy_url()}")
         _configure_default_extensions(options)
         if fingerprint_config is not None:
+            logger.info("Applying fingerprint config for session %s", session.id)
             _configure_chromium_options(options, fingerprint_config)
             _configure_chromium_fingerprint_extension(options, profile_dir, fingerprint_config)
 
+        logger.info("Starting webdriver for session %s", session.id)
         driver = webdriver.Chrome(options=options)
         if fingerprint_config is not None:
             _apply_chromium_fingerprint(driver, fingerprint_config)

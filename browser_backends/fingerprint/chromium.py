@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +23,8 @@ from .user_agent import _build_user_agent_metadata, _build_user_agent_patch
 from .webgl import _build_webgl_patch
 from .workers import _build_worker_fingerprint_patch, _needs_worker_fingerprint_patch
 
+logger = logging.getLogger(__name__)
+
 
 def _configure_chromium_options(options: ChromeOptions, config: FingerprintConfig) -> None:
     if config.hide_automation:
@@ -35,8 +38,10 @@ def _configure_chromium_options(options: ChromeOptions, config: FingerprintConfi
         options.add_argument(f"--lang={languages[0]}")
 
     if config.webrtc_mode == "disable":
+        logger.info("Configuring Chromium WebRTC disable mode")
         options.add_argument("--disable-webrtc")
     elif config.webrtc_mode in {"proxy_dns", "public_ip_only"}:
+        logger.info("Configuring Chromium WebRTC IP handling policy: %s", config.webrtc_mode)
         options.add_argument("--force-webrtc-ip-handling-policy=disable_non_proxied_udp")
 
 
@@ -47,6 +52,7 @@ def _configure_chromium_fingerprint_extension(
 ) -> None:
     script = _build_chromium_fingerprint_script(config)
     if not script:
+        logger.info("Fingerprint extension was not created because no fingerprint script was generated")
         return
 
     extension_dir = profile_dir / "secure_browser_fingerprint_extension"
@@ -74,6 +80,7 @@ def _configure_chromium_fingerprint_extension(
     )
     (extension_dir / "fingerprint.js").write_text(script, encoding="utf-8")
     _add_chromium_extension(options, extension_dir)
+    logger.info("Fingerprint extension prepared at %s", extension_dir)
 
 
 def _apply_chromium_fingerprint(
@@ -90,9 +97,11 @@ def _apply_chromium_fingerprint(
         if user_agent_metadata is not None:
             override["userAgentMetadata"] = user_agent_metadata
         driver.execute_cdp_cmd("Network.setUserAgentOverride", override)
+        logger.info("Applied CDP User-Agent override")
 
     if config.timezone:
         driver.execute_cdp_cmd("Emulation.setTimezoneOverride", {"timezoneId": config.timezone})
+        logger.info("Applied CDP timezone override: %s", config.timezone)
 
     if config.geolocation is not None:
         latitude, longitude = config.geolocation
@@ -104,10 +113,12 @@ def _apply_chromium_fingerprint(
                 "accuracy": 100,
             },
         )
+        logger.info("Applied CDP geolocation override")
 
     script = _build_chromium_fingerprint_script(config)
     if script:
         driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {"source": script})
+        logger.info("Registered fingerprint preload script through CDP")
 
 
 def _build_chromium_fingerprint_script(config: FingerprintConfig) -> str:

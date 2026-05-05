@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from PySide6.QtCore import QSize, Qt, QThreadPool
@@ -10,6 +11,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFileDialog,
+    QFormLayout,
     QHBoxLayout,
     QLabel,
     QListView,
@@ -34,6 +36,8 @@ from .fingerprint_config_dialog import FingerprintConfigDialog, _split_csv, _spl
 from .fingerprint_profile_row import FingerprintProfileRow
 from .proxy_config_row import ProxyConfigRow, ProxyTestSignals, ProxyTestWorker
 from .proxy_csv import _csv_value, _normalize_csv_protocol, parse_proxy_csv
+
+logger = logging.getLogger(__name__)
 
 
 class AppSettingsDialog(QDialog):
@@ -103,8 +107,35 @@ class AppSettingsDialog(QDialog):
         layout = QVBoxLayout(page)
         self.confirm_before_delete_check = QCheckBox(_("Ask before deleting"))
         self.confirm_before_delete_check.setChecked(self.app_service.confirm_before_delete())
+        self.profile_cache_check = QCheckBox(_("Keep deleted session profiles"))
+        self.profile_cache_check.setChecked(self.app_service.profile_cache_enabled())
+        self.profile_cache_days_combo = QComboBox()
+        for label, value in (
+            (_("1 day"), "1"),
+            (_("3 days"), "3"),
+            (_("7 days"), "7"),
+            (_("30 days"), "30"),
+            (_("90 days"), "90"),
+            (_("120 days"), "120"),
+            (_("Forever"), "forever"),
+        ):
+            self.profile_cache_days_combo.addItem(label, value)
+        index = self.profile_cache_days_combo.findData(self.app_service.profile_cache_days())
+        self.profile_cache_days_combo.setCurrentIndex(max(index, 0))
+        self.profile_cache_days_combo.setEnabled(self.profile_cache_check.isChecked())
+        self.export_all_logs_button = QPushButton(_("Export all logs"))
+        self.export_error_logs_button = QPushButton(_("Export error logs"))
         layout.addWidget(self.confirm_before_delete_check)
+        layout.addWidget(self.profile_cache_check)
+        profile_cache_form = QFormLayout()
+        profile_cache_form.addRow(_("Profile cache retention"), self.profile_cache_days_combo)
+        layout.addLayout(profile_cache_form)
+        layout.addWidget(self.export_all_logs_button)
+        layout.addWidget(self.export_error_logs_button)
         layout.addStretch(1)
+        self.profile_cache_check.toggled.connect(self.profile_cache_days_combo.setEnabled)
+        self.export_all_logs_button.clicked.connect(lambda: self.export_logs("all"))
+        self.export_error_logs_button.clicked.connect(lambda: self.export_logs("errors"))
         return page
 
     def _build_browser_page(self) -> QWidget:
@@ -247,8 +278,10 @@ class AppSettingsDialog(QDialog):
             self._add_fingerprint_row(profile)
 
     def scan_browsers(self) -> None:
+        logger.info("Browser scan requested from settings dialog")
         discovered = self.app_service.discover_installed_browsers()
         if not discovered:
+            logger.warning("Browser scan completed without detected browsers")
             QMessageBox.information(self, _("Find browsers"), _("No browsers were detected automatically."))
             return
 
@@ -267,6 +300,7 @@ class AppSettingsDialog(QDialog):
             added += 1
 
         QMessageBox.information(self, _("Find browsers"), _("Browsers added: {count}").format(count=added))
+        logger.info("Browser scan added %s browser row(s)", added)
 
     def add_manual_browser(self) -> None:
         key = self._unique_browser_key("browser")
@@ -319,9 +353,11 @@ class AppSettingsDialog(QDialog):
         if not path:
             return
 
+        logger.info("Importing proxies from CSV: %s", path)
         try:
             proxies = parse_proxy_csv(Path(path))
         except Exception as exc:
+            logger.exception("Failed to import proxy CSV: %s", path)
             QMessageBox.critical(self, _("CSV import error"), str(exc))
             return
 
@@ -346,6 +382,31 @@ class AppSettingsDialog(QDialog):
             self,
             _("CSV import"),
             _("Added proxies: {count}. Tests started.").format(count=added),
+        )
+        logger.info("Proxy CSV import added %s proxy row(s)", added)
+
+    def export_logs(self, kind: str) -> None:
+        default_name = "secure_browser.log" if kind == "all" else "secure_browser_errors.log"
+        path, selected_filter = QFileDialog.getSaveFileName(
+            self,
+            _("Export logs"),
+            default_name,
+            "Log files (*.log);;All files (*)",
+        )
+        if not path:
+            return
+
+        try:
+            exported_path = self.app_service.export_log_file(kind, path)
+        except Exception as exc:
+            logger.exception("Failed to export %s log file", kind)
+            QMessageBox.critical(self, _("Log export error"), str(exc))
+            return
+
+        QMessageBox.information(
+            self,
+            _("Export logs"),
+            _("Log file exported: {path}").format(path=exported_path),
         )
 
     def test_all_proxies(self) -> None:
@@ -390,6 +451,7 @@ class AppSettingsDialog(QDialog):
         )
 
     def save(self) -> None:
+        logger.info("Saving application settings")
         try:
             for config_id in self.deleted_browser_ids:
                 self.app_service.delete_browser_config(config_id)
@@ -425,11 +487,21 @@ class AppSettingsDialog(QDialog):
                 "confirm_before_delete",
                 "1" if self.confirm_before_delete_check.isChecked() else "0",
             )
+            self.app_service.set_setting(
+                "profile_cache_enabled",
+                "1" if self.profile_cache_check.isChecked() else "0",
+            )
+            self.app_service.set_setting(
+                "profile_cache_days",
+                str(self.profile_cache_days_combo.currentData() or "1"),
+            )
             load_language(language)
         except Exception as exc:
+            logger.exception("Failed to save application settings")
             QMessageBox.critical(self, _("Settings save error"), str(exc))
             return
 
+        logger.info("Application settings saved")
         self.accept()
 
     def _add_browser_row(self, config: BrowserConfig) -> None:

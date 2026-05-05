@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 import platform
@@ -8,6 +9,8 @@ import subprocess
 import sys
 
 from models.browser_config import BrowserConfig
+
+logger = logging.getLogger(__name__)
 
 
 def discover_installed_browsers() -> list[BrowserConfig]:
@@ -33,7 +36,8 @@ def discover_installed_browsers() -> list[BrowserConfig]:
                     browser_name=display_name,
                     version_keywords=_chromium_version_keywords(),
                 )
-            except RuntimeError:
+            except RuntimeError as exc:
+                logger.info("Skipping browser candidate %s: %s", path, exc)
                 continue
 
             seen_paths.add(path_key)
@@ -47,6 +51,7 @@ def discover_installed_browsers() -> list[BrowserConfig]:
                     enabled=True,
                 )
             )
+            logger.info("Discovered %s browser at %s", display_name, path)
             break
 
     return discovered
@@ -70,9 +75,10 @@ def _browser_binary_from_config(
             browser_name=browser_config.display_name,
             version_keywords=(),
         )
+        logger.info("Using configured browser binary for %s: %s", browser_config.display_name, path)
         return path
 
-    return _find_browser_binary(
+    path = _find_browser_binary(
         browser_name=default_browser_name,
         env_var=default_env_var,
         command_names=command_names,
@@ -80,6 +86,11 @@ def _browser_binary_from_config(
         version_keywords=version_keywords,
         required=required,
     )
+    if path is None:
+        logger.warning("No explicit browser binary configured for %s; Selenium will use driver defaults", default_browser_name)
+    else:
+        logger.info("Using detected browser binary for %s: %s", default_browser_name, path)
+    return path
 
 
 def _find_browser_binary(

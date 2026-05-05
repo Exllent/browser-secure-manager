@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import base64
+import logging
 import socket
 import ssl
 import time
 from dataclasses import dataclass
 
 from models.proxy_config import ProxyConfig
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -18,6 +21,7 @@ class ProxyTestResult:
 
 def test_proxy(proxy: ProxyConfig, *, timeout: float = 5.0) -> ProxyTestResult:
     started = time.perf_counter()
+    logger.info("Testing proxy %s", proxy.display_name())
     try:
         proxy_type = proxy.normalized_type()
         if proxy_type == "socks5":
@@ -30,13 +34,17 @@ def test_proxy(proxy: ProxyConfig, *, timeout: float = 5.0) -> ProxyTestResult:
         with sock:
             _verify_tls(sock, server_hostname="browserleaks.com", timeout=timeout)
     except OSError as exc:
+        logger.warning("Proxy test failed for %s: %s", proxy.display_name(), exc)
         return ProxyTestResult(False, None, str(exc))
     except ValueError as exc:
+        logger.warning("Proxy test failed for %s: %s", proxy.display_name(), exc)
         return ProxyTestResult(False, None, str(exc))
     except ssl.SSLError as exc:
+        logger.warning("Proxy TLS validation failed for %s: %s", proxy.display_name(), exc)
         return ProxyTestResult(False, None, f"TLS validation failed through proxy: {exc}")
 
     elapsed_ms = int((time.perf_counter() - started) * 1000)
+    logger.info("Proxy test passed for %s in %s ms", proxy.display_name(), elapsed_ms)
     return ProxyTestResult(True, elapsed_ms, "ok")
 
 

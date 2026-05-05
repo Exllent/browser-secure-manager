@@ -11,6 +11,23 @@ def collect_strings() -> None:
     QCoreApplication.translate("App", "Add session")
     QCoreApplication.translate("App", "Application settings")
     QCoreApplication.translate("App", "Ask before deleting")
+    QCoreApplication.translate("App", "Export all logs")
+    QCoreApplication.translate("App", "Export error logs")
+    QCoreApplication.translate("App", "Export logs")
+    QCoreApplication.translate("App", "Log export error")
+    QCoreApplication.translate("App", "Log file exported: {path}")
+    QCoreApplication.translate("App", "Load backup")
+    QCoreApplication.translate("App", "Save backup")
+    QCoreApplication.translate("App", "Backup error")
+    QCoreApplication.translate("App", "Backup file saved: {path}")
+    QCoreApplication.translate(
+        "App",
+        "Loading a full backup replaces current data. Session backups add one session. Continue?",
+    )
+    QCoreApplication.translate(
+        "App",
+        "Backup loaded: {sessions} sessions, {proxies} proxies, {fingerprints} fingerprints.",
+    )
     QCoreApplication.translate("App", "Save all")
     QCoreApplication.translate("App", "Stop all")
     QCoreApplication.translate("App", "ID")
@@ -39,6 +56,7 @@ def collect_strings() -> None:
     QCoreApplication.translate("App", "Start URL")
     QCoreApplication.translate("App", "Browser")
     QCoreApplication.translate("App", "Profile path")
+    QCoreApplication.translate("App", "Choose profile folder")
     QCoreApplication.translate("App", "Selected proxy")
     QCoreApplication.translate("App", "No proxy")
     QCoreApplication.translate("App", "Selected fingerprint")
@@ -62,6 +80,15 @@ def collect_strings() -> None:
     QCoreApplication.translate("App", "Fingerprints")
     QCoreApplication.translate("App", "Language")
     QCoreApplication.translate("App", "Language is applied after saving.")
+    QCoreApplication.translate("App", "Keep deleted session profiles")
+    QCoreApplication.translate("App", "Profile cache retention")
+    QCoreApplication.translate("App", "1 day")
+    QCoreApplication.translate("App", "3 days")
+    QCoreApplication.translate("App", "7 days")
+    QCoreApplication.translate("App", "30 days")
+    QCoreApplication.translate("App", "90 days")
+    QCoreApplication.translate("App", "120 days")
+    QCoreApplication.translate("App", "Forever")
     QCoreApplication.translate("App", "Find browsers")
     QCoreApplication.translate("App", "Add manually")
     QCoreApplication.translate("App", "Add proxy")

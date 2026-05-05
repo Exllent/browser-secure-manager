@@ -5,6 +5,7 @@ import logging
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QDialog,
+    QFileDialog,
     QGridLayout,
     QHBoxLayout,
     QLabel,
@@ -44,10 +45,12 @@ class MainWindow(QMainWindow):
         self.add_button = QPushButton(_("Add session"))
         self.app_settings_button = QPushButton(_("Application settings"))
         self.save_all_button = QPushButton(_("Save all"))
+        self.load_backup_button = QPushButton(_("Load backup"))
         self.stop_all_button = QPushButton(_("Stop all"))
         toolbar.addWidget(self.add_button)
         toolbar.addWidget(self.app_settings_button)
         toolbar.addWidget(self.save_all_button)
+        toolbar.addWidget(self.load_backup_button)
         toolbar.addWidget(self.stop_all_button)
         toolbar.addStretch(1)
         root_layout.addLayout(toolbar)
@@ -69,6 +72,7 @@ class MainWindow(QMainWindow):
         self.add_button.clicked.connect(self.add_session)
         self.app_settings_button.clicked.connect(self.open_app_settings)
         self.save_all_button.clicked.connect(self.save_all)
+        self.load_backup_button.clicked.connect(self.load_backup)
         self.stop_all_button.clicked.connect(self.stop_all)
 
         self.process_timer = QTimer(self)
@@ -95,6 +99,7 @@ class MainWindow(QMainWindow):
         return header
 
     def refresh_sessions(self) -> None:
+        logger.info("Refreshing sessions in main window")
         self._handle_session_process_events(self.app_service.refresh_session_statuses())
         self._clear_rows()
         browser_configs = self.app_service.get_browser_configs(enabled_only=True)
@@ -102,6 +107,7 @@ class MainWindow(QMainWindow):
             self._add_row(session, browser_configs)
 
     def add_session(self) -> None:
+        logger.info("Adding new session from main window")
         session = self.app_service.create_session(
             SessionEntry(
                 id=None,
@@ -114,10 +120,103 @@ class MainWindow(QMainWindow):
         self._add_row(session, self.app_service.get_browser_configs(enabled_only=True))
 
     def save_all(self) -> None:
+        logger.info("Full backup requested from main window")
+        if not self._save_all_rows():
+            return
+
+        path, selected_filter = QFileDialog.getSaveFileName(
+            self,
+            _("Save backup"),
+            "secure_browser_backup.json",
+            "Backup files (*.json);;All files (*)",
+        )
+        if not path:
+            return
+
+        try:
+            backup_path = self.app_service.export_full_backup(path)
+        except Exception as exc:
+            logger.exception("Failed to export full backup")
+            QMessageBox.critical(self, _("Backup error"), str(exc))
+            return
+
+        QMessageBox.information(
+            self,
+            _("Save backup"),
+            _("Backup file saved: {path}").format(path=backup_path),
+        )
+
+    def backup_session(self, row: SessionRowWidget) -> None:
+        saved = self._save_row(row)
+        if saved is None or saved.id is None:
+            return
+
+        path, selected_filter = QFileDialog.getSaveFileName(
+            self,
+            _("Save backup"),
+            f"session_{saved.id}_backup.json",
+            "Backup files (*.json);;All files (*)",
+        )
+        if not path:
+            return
+
+        try:
+            backup_path = self.app_service.export_session_backup(saved, path)
+        except Exception as exc:
+            logger.exception("Failed to export session %s backup", saved.id)
+            QMessageBox.critical(self, _("Backup error"), str(exc))
+            return
+
+        QMessageBox.information(
+            self,
+            _("Save backup"),
+            _("Backup file saved: {path}").format(path=backup_path),
+        )
+
+    def load_backup(self) -> None:
+        path, selected_filter = QFileDialog.getOpenFileName(
+            self,
+            _("Load backup"),
+            "",
+            "Backup files (*.json);;All files (*)",
+        )
+        if not path:
+            return
+        if not _confirm_delete(
+            self,
+            _("Load backup"),
+            _("Loading a full backup replaces current data. Session backups add one session. Continue?"),
+        ):
+            return
+
+        try:
+            result = self.app_service.import_backup(path)
+        except Exception as exc:
+            logger.exception("Failed to import backup")
+            QMessageBox.critical(self, _("Backup error"), str(exc))
+            return
+
+        self.refresh_sessions()
+        QMessageBox.information(
+            self,
+            _("Load backup"),
+            _(
+                "Backup loaded: {sessions} sessions, {proxies} proxies, {fingerprints} fingerprints."
+            ).format(
+                sessions=result.sessions,
+                proxies=result.proxy_configs,
+                fingerprints=result.fingerprint_profiles,
+            ),
+        )
+
+    def _save_all_rows(self) -> bool:
         for row in list(self.rows.values()):
-            self._save_row(row)
+            if self._save_row(row) is None:
+                return False
+        return True
 
     def stop_all(self) -> None:
+        logger.info("Stop all requested from main window")
         self.app_service.close_all_sessions()
         self.refresh_sessions()
 
@@ -132,7 +231,7 @@ class MainWindow(QMainWindow):
         row = SessionRowWidget(session, browser_configs, self.app_service)
         row.open_requested.connect(lambda entry, widget=row: self.open_session(entry, widget))
         row.stop_requested.connect(lambda entry, widget=row: self.stop_session(entry, widget))
-        row.save_requested.connect(lambda _entry, widget=row: self._save_row(widget))
+        row.save_requested.connect(lambda _entry, widget=row: self.backup_session(widget))
         row.delete_requested.connect(lambda entry, widget=row: self.delete_row(entry, widget))
         self.list_layout.addWidget(row)
         if session.id is not None:
@@ -152,15 +251,22 @@ class MainWindow(QMainWindow):
         return saved
 
     def open_session(self, session: SessionEntry, row: SessionRowWidget) -> None:
+        logger.info("Open requested for session %s", session.id)
         result = self.app_service.open_session(row.to_session())
         row.set_session(result.session)
         if not result.ok:
+            logger.warning(
+                "Open request for session %s failed: %s",
+                result.session.id,
+                result.error_message,
+            )
             QMessageBox.critical(self, _(result.error_title or "Error"), result.error_message or "")
             return
 
     def stop_session(self, session: SessionEntry, row: SessionRowWidget) -> None:
         if session.id is None:
             return
+        logger.info("Stop requested for session %s", session.id)
         self.app_service.close_session(session.id)
         row.set_status("stopped")
 
@@ -173,6 +279,7 @@ class MainWindow(QMainWindow):
             return
 
         if session.id is not None:
+            logger.info("Delete requested for session %s", session.id)
             self.app_service.delete_session(session.id)
             self.rows.pop(session.id, None)
 
@@ -188,6 +295,7 @@ class MainWindow(QMainWindow):
         self.rows.clear()
 
     def closeEvent(self, event) -> None:  # type: ignore[override]
+        logger.info("Main window closing")
         self.app_service.close_all_sessions()
         super().closeEvent(event)
 
@@ -237,6 +345,7 @@ class MainWindow(QMainWindow):
         self.add_button.setText(_("Add session"))
         self.app_settings_button.setText(_("Application settings"))
         self.save_all_button.setText(_("Save all"))
+        self.load_backup_button.setText(_("Load backup"))
         self.stop_all_button.setText(_("Stop all"))
 
         for label, (label_text, _width) in zip(self.header_labels, SESSION_TABLE_COLUMNS):

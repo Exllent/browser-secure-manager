@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from app.logging_config import SESSION_LOG_DIR, configure_logging
 from browser_backends.selenium_backend import SeleniumBrowserBackend
 from models.browser_config import BrowserConfig
 from models.fingerprint_config import FingerprintConfig
@@ -17,9 +18,6 @@ from models.session_entry import SessionEntry
 from services.proxy_tester import test_proxy
 
 logger = logging.getLogger(__name__)
-
-LOG_DIR = Path(__file__).resolve().parents[1] / "logs" / "sessions"
-
 
 @dataclass(slots=True)
 class SessionProcessEvent:
@@ -57,8 +55,9 @@ class SessionProcessManager:
             raise ValueError("Session must be saved before opening a browser")
 
         self.kill_session(session.id)
-        LOG_DIR.mkdir(parents=True, exist_ok=True)
-        log_path = str(LOG_DIR / f"session_{session.id}.log")
+        logger.info("Starting session process for session %s", session.id)
+        SESSION_LOG_DIR.mkdir(parents=True, exist_ok=True)
+        log_path = str(SESSION_LOG_DIR / f"session_{session.id}.log")
         command_queue = self._context.Queue()
         process = self._context.Process(
             target=_run_browser_session_process,
@@ -75,6 +74,7 @@ class SessionProcessManager:
         )
         process.daemon = False
         process.start()
+        logger.info("Session process %s started for session %s", process.pid, session.id)
         self._records[session.id] = _SessionProcessRecord(
             process=process,
             command_queue=command_queue,
@@ -85,9 +85,11 @@ class SessionProcessManager:
     def kill_session(self, session_id: int, *, timeout: float = 2.0) -> bool:
         record = self._records.pop(session_id, None)
         if record is None:
+            logger.info("Session %s has no active process to stop", session_id)
             return False
 
         if record.process.is_alive():
+            logger.info("Stopping session process %s for session %s", record.process.pid, session_id)
             try:
                 record.command_queue.put_nowait({"type": "stop"})
             except Exception:
@@ -95,16 +97,27 @@ class SessionProcessManager:
 
             record.process.join(timeout)
             if record.process.is_alive():
+                logger.warning(
+                    "Session process %s did not stop gracefully; terminating",
+                    record.process.pid,
+                )
                 record.process.terminate()
                 record.process.join(timeout)
             if record.process.is_alive():
+                logger.error(
+                    "Session process %s did not terminate; killing",
+                    record.process.pid,
+                )
                 record.process.kill()
                 record.process.join(timeout)
 
+        logger.info("Session process for session %s stopped with exit code %s", session_id, record.process.exitcode)
         record.process.close()
         return True
 
     def kill_all(self) -> None:
+        if self._records:
+            logger.info("Stopping all session processes: %s", sorted(self._records))
         for session_id in list(self._records):
             self.kill_session(session_id)
 
@@ -160,6 +173,7 @@ class SessionProcessManager:
             if record.state in {"failed", "stopped"}:
                 continue
             if record.state == "running" or exitcode == 0:
+                logger.info("Session process for session %s exited with code %s", session_id, exitcode)
                 events.append(
                     SessionProcessEvent(
                         session_id=session_id,
@@ -170,6 +184,11 @@ class SessionProcessManager:
                     )
                 )
             else:
+                logger.error(
+                    "Session process for session %s exited before startup with code %s",
+                    session_id,
+                    exitcode,
+                )
                 events.append(
                     SessionProcessEvent(
                         session_id=session_id,
@@ -294,18 +313,9 @@ def _process_session_loop(
 
 def _configure_child_logging(session_id: int, event_queue: Any, log_path: str) -> None:
     Path(log_path).parent.mkdir(parents=True, exist_ok=True)
-    root_logger = logging.getLogger()
-    root_logger.handlers.clear()
-    root_logger.setLevel(logging.INFO)
-
-    formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
     file_handler = logging.FileHandler(log_path, encoding="utf-8")
-    file_handler.setFormatter(formatter)
     queue_handler = _QueueLogHandler(session_id, event_queue, log_path)
-    queue_handler.setFormatter(formatter)
-
-    root_logger.addHandler(file_handler)
-    root_logger.addHandler(queue_handler)
+    configure_logging(extra_handlers=[file_handler, queue_handler])
 
 
 def _event_from_payload(payload: object) -> SessionProcessEvent:
