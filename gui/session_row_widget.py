@@ -17,6 +17,7 @@ SESSION_TABLE_COLUMNS = (
     ("Name", 360),
     ("Status", 110),
     ("Open", 72),
+    ("Stop", 72),
     ("Settings", 92),
     ("Save", 92),
     ("Delete", 72),
@@ -25,6 +26,7 @@ SESSION_TABLE_COLUMNS = (
 
 class SessionRowWidget(QWidget):
     open_requested = Signal(object)
+    stop_requested = Signal(object)
     save_requested = Signal(object)
     delete_requested = Signal(object)
 
@@ -59,8 +61,10 @@ class SessionRowWidget(QWidget):
 
         self.status_label = QLabel(_status_label(session.status))
         self.status_label.setFixedWidth(SESSION_TABLE_COLUMNS[2][1])
+        self._process_logs: list[str] = []
 
         self.open_button = self._make_action_button("▶", _("Open"), "#1f9d55")
+        self.stop_button = self._make_action_button("■", _("Stop"), "#f59e0b")
         self.settings_button = self._make_action_button("⚙", _("Settings"), "#9ca3af")
         self.save_button = self._make_action_button("✓", _("Save"), "#60a5fa")
         self.delete_button = self._make_action_button("✖", _("Delete"), "#f87171")
@@ -73,6 +77,7 @@ class SessionRowWidget(QWidget):
             self.name_edit,
             self.status_label,
             self.open_button,
+            self.stop_button,
             self.settings_button,
             self.save_button,
             self.delete_button,
@@ -83,9 +88,11 @@ class SessionRowWidget(QWidget):
             layout.setColumnMinimumWidth(column, width)
 
         self.open_button.clicked.connect(lambda: self.open_requested.emit(self.to_session()))
+        self.stop_button.clicked.connect(lambda: self.stop_requested.emit(self.to_session()))
         self.settings_button.clicked.connect(self.open_settings_dialog)
         self.save_button.clicked.connect(lambda: self.save_requested.emit(self.to_session()))
         self.delete_button.clicked.connect(lambda: self.delete_requested.emit(self.to_session()))
+        self._update_process_buttons()
 
     @staticmethod
     def _make_action_button(text: str, tooltip: str, color: str) -> QPushButton:
@@ -148,6 +155,14 @@ class SessionRowWidget(QWidget):
     def set_status(self, status: str) -> None:
         self._status = status
         self.status_label.setText(_status_label(status))
+        self._update_process_buttons()
+
+    def append_process_log(self, message: str) -> None:
+        if not message:
+            return
+        self._process_logs.append(message)
+        self._process_logs = self._process_logs[-20:]
+        self.status_label.setToolTip("\n".join(self._process_logs))
 
     def retranslate_ui(self) -> None:
         if self._session_id is None:
@@ -155,6 +170,7 @@ class SessionRowWidget(QWidget):
         self.name_edit.setPlaceholderText(_("Name"))
         self.status_label.setText(_status_label(self._status))
         self.open_button.setToolTip(_("Open"))
+        self.stop_button.setToolTip(_("Stop"))
         self.settings_button.setToolTip(_("Settings"))
         self.save_button.setToolTip(_("Save"))
         self.delete_button.setToolTip(_("Delete"))
@@ -184,3 +200,8 @@ class SessionRowWidget(QWidget):
         self._notes = updated.notes
         self._window_width = updated.window_width
         self._window_height = updated.window_height
+
+    def _update_process_buttons(self) -> None:
+        is_active = self._status in {"starting", "running"}
+        self.open_button.setEnabled(not is_active)
+        self.stop_button.setEnabled(is_active)

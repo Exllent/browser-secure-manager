@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QDialog,
     QGridLayout,
@@ -30,11 +30,12 @@ class MainWindow(QMainWindow):
     def __init__(self, app_service: AppService) -> None:
         super().__init__()
         self.setWindowTitle(_("Isolated Browser Sessions"))
-        self.resize(1050, 720)
+        self.resize(1160, 720)
 
         self.app_service = app_service
         self.rows: dict[int, SessionRowWidget] = {}
         self.header_labels: list[QLabel] = []
+        self._session_log_paths: dict[int, str] = {}
 
         root = QWidget()
         root_layout = QVBoxLayout(root)
@@ -43,12 +44,10 @@ class MainWindow(QMainWindow):
         self.add_button = QPushButton(_("Add session"))
         self.app_settings_button = QPushButton(_("Application settings"))
         self.save_all_button = QPushButton(_("Save all"))
-        self.refresh_button = QPushButton(_("Refresh"))
         self.stop_all_button = QPushButton(_("Stop all"))
         toolbar.addWidget(self.add_button)
         toolbar.addWidget(self.app_settings_button)
         toolbar.addWidget(self.save_all_button)
-        toolbar.addWidget(self.refresh_button)
         toolbar.addWidget(self.stop_all_button)
         toolbar.addStretch(1)
         root_layout.addLayout(toolbar)
@@ -70,8 +69,12 @@ class MainWindow(QMainWindow):
         self.add_button.clicked.connect(self.add_session)
         self.app_settings_button.clicked.connect(self.open_app_settings)
         self.save_all_button.clicked.connect(self.save_all)
-        self.refresh_button.clicked.connect(self.refresh_sessions)
         self.stop_all_button.clicked.connect(self.stop_all)
+
+        self.process_timer = QTimer(self)
+        self.process_timer.setInterval(500)
+        self.process_timer.timeout.connect(self.poll_session_processes)
+        self.process_timer.start()
 
         self.refresh_sessions()
 
@@ -92,6 +95,7 @@ class MainWindow(QMainWindow):
         return header
 
     def refresh_sessions(self) -> None:
+        self._handle_session_process_events(self.app_service.refresh_session_statuses())
         self._clear_rows()
         browser_configs = self.app_service.get_browser_configs(enabled_only=True)
         for session in self.app_service.get_sessions():
@@ -115,9 +119,10 @@ class MainWindow(QMainWindow):
 
     def stop_all(self) -> None:
         self.app_service.close_all_sessions()
-        for row in self.rows.values():
-            saved = self.app_service.save_session(row.to_session())
-            row.set_session(saved)
+        self.refresh_sessions()
+
+    def poll_session_processes(self) -> None:
+        self._handle_session_process_events(self.app_service.poll_session_process_events())
 
     def _add_row(
         self,
@@ -126,6 +131,7 @@ class MainWindow(QMainWindow):
     ) -> None:
         row = SessionRowWidget(session, browser_configs, self.app_service)
         row.open_requested.connect(lambda entry, widget=row: self.open_session(entry, widget))
+        row.stop_requested.connect(lambda entry, widget=row: self.stop_session(entry, widget))
         row.save_requested.connect(lambda _entry, widget=row: self._save_row(widget))
         row.delete_requested.connect(lambda entry, widget=row: self.delete_row(entry, widget))
         self.list_layout.addWidget(row)
@@ -151,6 +157,12 @@ class MainWindow(QMainWindow):
         if not result.ok:
             QMessageBox.critical(self, _(result.error_title or "Error"), result.error_message or "")
             return
+
+    def stop_session(self, session: SessionEntry, row: SessionRowWidget) -> None:
+        if session.id is None:
+            return
+        self.app_service.close_session(session.id)
+        row.set_status("stopped")
 
     def delete_row(self, session: SessionEntry, row: SessionRowWidget) -> None:
         if self.app_service.confirm_before_delete() and not _confirm_delete(
@@ -179,6 +191,37 @@ class MainWindow(QMainWindow):
         self.app_service.close_all_sessions()
         super().closeEvent(event)
 
+    def _handle_session_process_events(self, events) -> None:
+        for event in events:
+            if event.session_id < 0:
+                continue
+            if event.log_path:
+                self._session_log_paths[event.session_id] = event.log_path
+
+            row = self.rows.get(event.session_id)
+            if row is not None and event.message:
+                row.append_process_log(event.message)
+
+            if event.type == "started":
+                if row is not None:
+                    row.set_status("running")
+                continue
+
+            if event.type == "stopped":
+                if row is not None:
+                    row.set_status("stopped")
+                continue
+
+            if event.type == "failed":
+                if row is not None:
+                    row.set_status("error")
+                details = event.message
+                if event.log_path:
+                    details += f"\n\nLog file: {event.log_path}"
+                if event.traceback:
+                    details += f"\n\n{event.traceback}"
+                QMessageBox.critical(self, _("Browser launch error"), details)
+
     def open_app_settings(self) -> None:
         dialog = AppSettingsDialog(self.app_service, self)
         if dialog.exec() != QDialog.DialogCode.Accepted:
@@ -194,7 +237,6 @@ class MainWindow(QMainWindow):
         self.add_button.setText(_("Add session"))
         self.app_settings_button.setText(_("Application settings"))
         self.save_all_button.setText(_("Save all"))
-        self.refresh_button.setText(_("Refresh"))
         self.stop_all_button.setText(_("Stop all"))
 
         for label, (label_text, _width) in zip(self.header_labels, SESSION_TABLE_COLUMNS):

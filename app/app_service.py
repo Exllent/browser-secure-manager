@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from browser_backends.base import BrowserBackend
 from db import storage
+from app.session_process import SessionProcessEvent, SessionProcessManager
 from models.browser_config import BrowserConfig
 from models.fingerprint_profile import FingerprintProfile
 from models.proxy_config import ProxyConfig
@@ -25,6 +26,7 @@ class OpenSessionResult:
 class AppService:
     def __init__(self, browser_backend: BrowserBackend) -> None:
         self.browser_backend = browser_backend
+        self.session_processes = SessionProcessManager()
 
     def init_storage(self) -> None:
         storage.init_db()
@@ -39,7 +41,7 @@ class AppService:
         return storage.update_session(session)
 
     def delete_session(self, session_id: int) -> None:
-        self.browser_backend.close_session(session_id)
+        self.close_session(session_id)
         storage.delete_session(session_id)
 
     def open_session(self, session: SessionEntry) -> OpenSessionResult:
@@ -71,20 +73,8 @@ class AppService:
                 error_message="The selected fingerprint was not found or is disabled in application settings.",
             )
 
-        if proxy_config is not None:
-            proxy_result = test_proxy(proxy_config)
-            if not proxy_result.ok:
-                return OpenSessionResult(
-                    session=saved,
-                    error_title="Proxy is not working",
-                    error_message=(
-                        f"Proxy {proxy_config.display_name()} did not pass validation.\n"
-                        f"Error: {proxy_result.message}"
-                    ),
-                )
-
         try:
-            self.browser_backend.open_session(
+            self.session_processes.start_session(
                 saved,
                 browser_config,
                 proxy_config,
@@ -99,15 +89,57 @@ class AppService:
                 error_message=str(exc),
             )
 
-        saved.status = "running"
+        saved.status = "starting"
         saved = storage.update_session(saved)
         return OpenSessionResult(session=saved)
 
+    def close_session(self, session_id: int) -> None:
+        self.session_processes.kill_session(session_id)
+        session = self._get_session(session_id)
+        if session is not None:
+            session.status = "stopped"
+            storage.update_session(session)
+
     def close_all_sessions(self) -> None:
+        self.session_processes.kill_all()
         self.browser_backend.close_all()
         for session in storage.get_all_sessions():
             session.status = "stopped"
             storage.update_session(session)
+
+    def poll_session_process_events(self) -> list[SessionProcessEvent]:
+        events = self.session_processes.poll_events()
+        for event in events:
+            if event.session_id < 0:
+                continue
+            session = self._get_session(event.session_id)
+            if session is None:
+                continue
+            if event.type == "started":
+                session.status = "running"
+                storage.update_session(session)
+            elif event.type == "failed":
+                session.status = "error"
+                storage.update_session(session)
+            elif event.type == "stopped":
+                session.status = "stopped"
+                storage.update_session(session)
+        return events
+
+    def refresh_session_statuses(self) -> list[SessionProcessEvent]:
+        events = self.poll_session_process_events()
+        active_ids = self.session_processes.active_session_ids()
+        for session in storage.get_all_sessions():
+            if session.status in {"starting", "running"} and session.id not in active_ids:
+                session.status = "stopped"
+                storage.update_session(session)
+        return events
+
+    def _get_session(self, session_id: int) -> SessionEntry | None:
+        for session in storage.get_all_sessions():
+            if session.id == session_id:
+                return session
+        return None
 
     def get_browser_configs(self, *, enabled_only: bool = False) -> list[BrowserConfig]:
         return storage.get_browser_configs(enabled_only=enabled_only)

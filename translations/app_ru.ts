@@ -11,12 +11,12 @@
     <message><source>Application settings</source><translation>Настройки программы</translation></message>
     <message><source>Ask before deleting</source><translation>Спрашивать перед удалением</translation></message>
     <message><source>Save all</source><translation>Сохранить всё</translation></message>
-    <message><source>Refresh</source><translation>Обновить</translation></message>
     <message><source>Stop all</source><translation>Остановить все</translation></message>
     <message><source>ID</source><translation>ID</translation></message>
     <message><source>Name</source><translation>Название</translation></message>
     <message><source>Status</source><translation>Статус</translation></message>
     <message><source>Open</source><translation>Запустить</translation></message>
+    <message><source>Stop</source><translation>Остановить</translation></message>
     <message><source>Settings</source><translation>Настройки</translation></message>
     <message><source>Save</source><translation>Сохранить</translation></message>
     <message><source>Cancel</source><translation>Отмена</translation></message>
@@ -160,6 +160,7 @@
     <message><source>Testing</source><translation>тест</translation></message>
     <message><source>Error</source><translation>ошибка</translation></message>
     <message><source>Idle</source><translation>Ожидает</translation></message>
+    <message><source>Starting</source><translation>Запускается</translation></message>
     <message><source>Running</source><translation>Запущен</translation></message>
     <message><source>Stopped</source><translation>Остановлен</translation></message>
 </context>

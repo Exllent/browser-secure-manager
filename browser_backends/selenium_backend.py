@@ -102,6 +102,18 @@ class SeleniumBrowserBackend:
         for session_id in list(self._drivers):
             self.close_session(session_id)
 
+    def is_session_running(self, session_id: int) -> bool:
+        driver = self._drivers.get(session_id)
+        if driver is None:
+            return False
+
+        try:
+            return bool(driver.window_handles)
+        except WebDriverException:
+            logger.info("Browser session %s is no longer reachable", session_id)
+            self._drivers.pop(session_id, None)
+            return False
+
     def discover_installed_browsers(self) -> list[BrowserConfig]:
         return discover_installed_browsers()
 

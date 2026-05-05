@@ -6,6 +6,7 @@ from app.i18n import _
 def _status_label(status: str) -> str:
     labels = {
         "idle": _("Idle"),
+        "starting": _("Starting"),
         "running": _("Running"),
         "stopped": _("Stopped"),
         "error": _("Error"),

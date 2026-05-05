@@ -87,7 +87,7 @@ User interface only. GUI code talks to `AppService` and should not directly use 
 
 `app/`
 
-Application layer. `AppService` owns business operations, coordinates storage, proxy testing, and the selected browser backend. GUI localization helpers and font configuration also live here.
+Application layer. `AppService` owns business operations, coordinates storage, proxy testing, and the selected browser backend. Browser sessions are launched through per-session child processes managed from this layer, so Selenium startup and proxy checks do not block the GUI. GUI localization helpers and font configuration also live here.
 
 `browser_backends/`
 
@@ -219,6 +219,7 @@ Status values remain English machine values in SQLite:
 
 ```text
 idle
+starting
 running
 stopped
 error
