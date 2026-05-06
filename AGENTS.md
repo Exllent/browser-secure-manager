@@ -38,7 +38,7 @@ Keep responsibilities separated:
 - `gui/`: widgets and dialogs only. GUI talks to `AppService`; it must not call SQLite, Selenium, webdriver, or CDP directly.
 - `app/`: application orchestration. `AppService` validates selections, coordinates storage, starts/stops session processes, polls process events, and exposes CRUD methods to GUI.
 - `app/session_process.py`: multiprocessing session runner. Browser launches happen in child processes, not the GUI thread.
-- `db/storage.py`: SQLite schema, migrations, row mapping, CRUD, default profile paths, app settings, and portable JSON backup import/export for persisted app data.
+- `db/`: SQLite persistence modules. `db/storage.py` is only a compatibility facade; place implementation in focused modules such as `schema.py`, `sessions.py`, `browsers.py`, `proxies.py`, `fingerprints.py`, `settings.py`, `profile_cache.py`, and `backups.py`.
 - `models/`: dataclasses, validation, and fingerprint generation data.
 - `browser_backends/`: browser backend protocol, Selenium implementation, browser discovery, Chromium extension setup, Chromium bookmark/shortcut profile preparation.
 - `browser_backends/fingerprint/`: fingerprint-specific Chromium option, CDP, extension, and JavaScript patch builders.
@@ -109,14 +109,18 @@ Cleanup behavior:
 
 ## Storage
 
-`db/storage.py` owns:
-- SQLite connection and schema creation.
-- Lightweight migration helpers such as `_ensure_session_columns()`.
-- Default browser config seeding.
-- Session, proxy, browser, fingerprint, and app setting CRUD.
-- Default profile path normalization.
-- Portable JSON backup import/export.
-- Profile cache retention cleanup and safe profile directory deletion.
+The storage layer is split by responsibility:
+- `db/config.py`: mutable paths and SQLite connection factory.
+- `db/schema.py`: SQLite schema creation, lightweight migrations, and default browser/session seeding.
+- `db/mappers.py`: SQLite row to dataclass mapping and fingerprint JSON compatibility parsing.
+- `db/sessions.py`: session CRUD and default profile path normalization.
+- `db/browsers.py`: browser config CRUD and key generation.
+- `db/proxies.py`: proxy config CRUD.
+- `db/fingerprints.py`: fingerprint profile CRUD and validation before persistence.
+- `db/settings.py`: app setting CRUD.
+- `db/profile_cache.py`: profile cache retention cleanup and safe profile directory deletion.
+- `db/backups.py`: portable JSON backup import/export, validation, and id remapping.
+- `db/storage.py`: compatibility facade that re-exports the public API used by `AppService` and tests.
 
 Tables:
 - `sessions`
@@ -146,7 +150,7 @@ Backup contents are persisted app records only. Chromium profile directories, lo
 Layering:
 - GUI may choose files and show confirmation/messages only.
 - `AppService` coordinates saving current UI state, stopping active sessions before import, and calling storage.
-- `db/storage.py` owns backup serialization, deserialization, validation, id remapping, and SQLite writes.
+- `db/backups.py` owns backup serialization, deserialization, validation, id remapping, and SQLite writes.
 
 ## Browser Backend
 
@@ -365,7 +369,7 @@ python -m compileall app browser_backends db gui models services tests
 
 - Prefer small, focused modules with clear ownership.
 - Follow existing dataclass and PySide6 patterns.
-- Keep persistence changes in `db/storage.py`.
+- Keep persistence changes in the focused `db/` module that owns the behavior; keep `db/storage.py` as a thin facade.
 - Keep browser-launch behavior behind `BrowserBackend`.
 - Keep Chromium/Selenium details out of GUI.
 - Keep fingerprint JavaScript builders separated by fingerprint area.

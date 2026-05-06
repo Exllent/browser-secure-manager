@@ -7,6 +7,8 @@ from pathlib import Path
 
 from app.app_service import AppService
 from browser_backends.base import BrowserBackend
+from db import config as db_config
+from db import profile_cache
 from db import storage
 from models.browser_config import BrowserConfig
 from models.session_entry import SessionEntry
@@ -29,21 +31,21 @@ class _DummyBrowserBackend(BrowserBackend):
 class ProfileCacheTest(unittest.TestCase):
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
-        self._old_db_path = storage.DB_PATH
-        self._old_profiles_dir = storage.PROFILES_DIR
+        self._old_db_path = db_config.DB_PATH
+        self._old_profiles_dir = db_config.PROFILES_DIR
         self.base_path = Path(self._tmp.name)
-        storage.DB_PATH = self.base_path / "sessions.sqlite3"
-        storage.PROFILES_DIR = self.base_path / "profiles"
+        db_config.DB_PATH = self.base_path / "sessions.sqlite3"
+        db_config.PROFILES_DIR = self.base_path / "profiles"
         storage.init_db()
         for session in storage.get_all_sessions():
             if session.id is not None:
                 storage.delete_session(session.id)
-        for profile_dir in storage.PROFILES_DIR.iterdir():
+        for profile_dir in db_config.PROFILES_DIR.iterdir():
             storage.delete_profile_directory(profile_dir)
 
     def tearDown(self) -> None:
-        storage.DB_PATH = self._old_db_path
-        storage.PROFILES_DIR = self._old_profiles_dir
+        db_config.DB_PATH = self._old_db_path
+        db_config.PROFILES_DIR = self._old_profiles_dir
         self._tmp.cleanup()
 
     def test_disabled_profile_cache_deletes_profile_on_session_delete(self) -> None:
@@ -79,15 +81,15 @@ class ProfileCacheTest(unittest.TestCase):
             )
         )
         active_path = Path(active_session.profile_path)
-        orphan_path = storage.PROFILES_DIR / "session_999"
+        orphan_path = db_config.PROFILES_DIR / "session_999"
         orphan_path.mkdir(parents=True)
-        old_profile_created_at = storage._profile_created_at  # noqa: SLF001
+        old_profile_created_at = profile_cache._profile_created_at  # noqa: SLF001
         try:
-            storage._profile_created_at = lambda _path: datetime(2000, 1, 1, tzinfo=UTC)  # type: ignore[assignment]  # noqa: SLF001
+            profile_cache._profile_created_at = lambda _path: datetime(2000, 1, 1, tzinfo=UTC)  # type: ignore[assignment]  # noqa: SLF001
 
             deleted = storage.cleanup_expired_profile_cache()
         finally:
-            storage._profile_created_at = old_profile_created_at  # type: ignore[assignment]  # noqa: SLF001
+            profile_cache._profile_created_at = old_profile_created_at  # type: ignore[assignment]  # noqa: SLF001
 
         self.assertEqual(deleted, 1)
         self.assertTrue(active_path.exists())

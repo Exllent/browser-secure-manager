@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from db import config as db_config
 from db import storage
 from models.fingerprint_config import FingerprintConfig
 from models.fingerprint_profile import FingerprintProfile
@@ -14,19 +15,19 @@ from models.session_entry import SessionEntry
 class BackupStorageTest(unittest.TestCase):
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
-        self._old_db_path = storage.DB_PATH
-        self._old_profiles_dir = storage.PROFILES_DIR
+        self._old_db_path = db_config.DB_PATH
+        self._old_profiles_dir = db_config.PROFILES_DIR
         self.base_path = Path(self._tmp.name)
-        storage.DB_PATH = self.base_path / "sessions.sqlite3"
-        storage.PROFILES_DIR = self.base_path / "profiles"
+        db_config.DB_PATH = self.base_path / "sessions.sqlite3"
+        db_config.PROFILES_DIR = self.base_path / "profiles"
         storage.init_db()
         for session in storage.get_all_sessions():
             if session.id is not None:
                 storage.delete_session(session.id)
 
     def tearDown(self) -> None:
-        storage.DB_PATH = self._old_db_path
-        storage.PROFILES_DIR = self._old_profiles_dir
+        db_config.DB_PATH = self._old_db_path
+        db_config.PROFILES_DIR = self._old_profiles_dir
         self._tmp.cleanup()
 
     def test_full_backup_replaces_current_data(self) -> None:
@@ -116,8 +117,8 @@ class BackupStorageTest(unittest.TestCase):
         backup_path = self.base_path / "session_backup.json"
 
         storage.export_session_backup(session.id or 0, backup_path)
-        storage.DB_PATH = self.base_path / "imported.sqlite3"
-        storage.PROFILES_DIR = self.base_path / "imported_profiles"
+        db_config.DB_PATH = self.base_path / "imported.sqlite3"
+        db_config.PROFILES_DIR = self.base_path / "imported_profiles"
         storage.init_db()
         for existing in storage.get_all_sessions():
             if existing.id is not None:
