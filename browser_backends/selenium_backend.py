@@ -1,7 +1,12 @@
 from __future__ import annotations
 
 import logging
+import itertools
+import json
+import threading
+import urllib.request
 from pathlib import Path
+from typing import Any
 
 from selenium import webdriver
 from selenium.common.exceptions import WebDriverException
@@ -49,6 +54,7 @@ __all__ = [
 class SeleniumBrowserBackend:
     def __init__(self) -> None:
         self._drivers: dict[int, webdriver.Chrome] = {}
+        self._fingerprint_enforcers: dict[int, _FingerprintTargetEnforcer] = {}
 
     def open_session(
         self,
@@ -85,6 +91,10 @@ class SeleniumBrowserBackend:
             raise
 
         self._drivers[session.id] = driver
+        if fingerprint_config is not None:
+            enforcer = _FingerprintTargetEnforcer(driver, fingerprint_config, session.url, session.id)
+            enforcer.start()
+            self._fingerprint_enforcers[session.id] = enforcer
         logger.info("Navigating session %s to %s", session.id, session.url)
         driver.get(session.url)
         if fingerprint_config is not None:
@@ -95,6 +105,9 @@ class SeleniumBrowserBackend:
                 driver.execute_script(script)
 
     def close_session(self, session_id: int) -> None:
+        enforcer = self._fingerprint_enforcers.pop(session_id, None)
+        if enforcer is not None:
+            enforcer.close()
         driver = self._drivers.pop(session_id, None)
         if driver is None:
             return
@@ -176,6 +189,193 @@ def _effective_user_agent(
     if fingerprint_config is not None and fingerprint_config.user_agent:
         return fingerprint_config.user_agent.strip()
     return ""
+
+
+class _FingerprintTargetEnforcer:
+    def __init__(
+        self,
+        driver: webdriver.Chrome,
+        fingerprint_config: FingerprintConfig,
+        session_url: str,
+        session_id: int | None,
+    ) -> None:
+        self.driver = driver
+        self.fingerprint_config = fingerprint_config
+        self.session_url = session_url
+        self.session_id = session_id
+        self.script = _build_chromium_fingerprint_script(fingerprint_config)
+        self._counter = itertools.count(1)
+        self._lock = threading.Lock()
+        self._closed = threading.Event()
+        self._socket: Any = None
+        self._thread: threading.Thread | None = None
+
+    def start(self) -> None:
+        if not self.script:
+            return
+        debugger_address = _debugger_address(self.driver)
+        if not debugger_address:
+            logger.warning(
+                "Could not start fingerprint target enforcer for session %s: no debugger address",
+                self.session_id,
+            )
+            return
+
+        try:
+            import websocket  # type: ignore[import-not-found]
+
+            version_url = f"http://{debugger_address}/json/version"
+            with urllib.request.urlopen(version_url, timeout=2) as response:
+                version = json.loads(response.read().decode("utf-8"))
+            websocket_url = version["webSocketDebuggerUrl"]
+            self._socket = websocket.create_connection(
+                websocket_url,
+                timeout=2,
+                suppress_origin=True,
+            )
+            self._socket.settimeout(None)
+        except Exception:
+            logger.exception(
+                "Could not connect fingerprint target enforcer for session %s",
+                self.session_id,
+            )
+            self.close()
+            return
+
+        self._thread = threading.Thread(
+            target=self._read_loop,
+            name=f"secure-browser-fingerprint-cdp-{self.session_id}",
+            daemon=True,
+        )
+        self._thread.start()
+        self._send(
+            "Target.setAutoAttach",
+            {
+                "autoAttach": True,
+                "waitForDebuggerOnStart": True,
+                "flatten": True,
+            },
+        )
+        self._send("Target.setDiscoverTargets", {"discover": True})
+        logger.info("Fingerprint target enforcer started for session %s", self.session_id)
+
+    def close(self) -> None:
+        self._closed.set()
+        socket = self._socket
+        self._socket = None
+        if socket is not None:
+            try:
+                socket.close()
+            except Exception:
+                pass
+
+    def _read_loop(self) -> None:
+        while not self._closed.is_set():
+            try:
+                raw_message = self._socket.recv()
+            except Exception:
+                if not self._closed.is_set():
+                    logger.info(
+                        "Fingerprint target enforcer stopped for session %s",
+                        self.session_id,
+                    )
+                return
+
+            try:
+                message = json.loads(raw_message)
+            except Exception:
+                continue
+
+            if message.get("method") == "Target.attachedToTarget":
+                params = message.get("params") or {}
+                session_id = params.get("sessionId")
+                target_info = params.get("targetInfo") or {}
+                target_type = target_info.get("type")
+                if isinstance(session_id, str) and target_type in {"page", "iframe"}:
+                    self._configure_target(session_id)
+
+    def _configure_target(self, cdp_session_id: str) -> None:
+        user_agent_override = _user_agent_override_payload(self.fingerprint_config)
+        if user_agent_override is not None:
+            self._send(
+                "Network.setUserAgentOverride",
+                user_agent_override,
+                session_id=cdp_session_id,
+            )
+        if self.fingerprint_config.timezone:
+            self._send(
+                "Emulation.setTimezoneOverride",
+                {"timezoneId": self.fingerprint_config.timezone},
+                session_id=cdp_session_id,
+            )
+        if self.fingerprint_config.geolocation is not None:
+            latitude, longitude = self.fingerprint_config.geolocation
+            self._send(
+                "Emulation.setGeolocationOverride",
+                {"latitude": latitude, "longitude": longitude, "accuracy": 100},
+                session_id=cdp_session_id,
+            )
+        self._send("Page.enable", {}, session_id=cdp_session_id)
+        self._send(
+            "Page.addScriptToEvaluateOnNewDocument",
+            {"source": self.script},
+            session_id=cdp_session_id,
+        )
+        self._send("Runtime.runIfWaitingForDebugger", {}, session_id=cdp_session_id)
+        logger.info(
+            "Fingerprint preload installed before target start for session %s",
+            self.session_id,
+        )
+
+    def _send(
+        self,
+        method: str,
+        params: dict[str, Any] | None = None,
+        *,
+        session_id: str | None = None,
+    ) -> None:
+        socket = self._socket
+        if socket is None:
+            return
+        message: dict[str, Any] = {
+            "id": next(self._counter),
+            "method": method,
+            "params": params or {},
+        }
+        if session_id is not None:
+            message["sessionId"] = session_id
+        try:
+            with self._lock:
+                socket.send(json.dumps(message))
+        except Exception:
+            if not self._closed.is_set():
+                logger.exception(
+                    "Failed to send fingerprint CDP command %s for session %s",
+                    method,
+                    self.session_id,
+                )
+
+
+def _debugger_address(driver: webdriver.Chrome) -> str:
+    chrome_options = driver.capabilities.get("goog:chromeOptions", {})
+    if not isinstance(chrome_options, dict):
+        return ""
+    debugger_address = chrome_options.get("debuggerAddress", "")
+    return str(debugger_address or "")
+
+
+def _user_agent_override_payload(config: FingerprintConfig) -> dict[str, Any] | None:
+    if not config.user_agent:
+        return None
+    override: dict[str, Any] = {
+        "userAgent": config.user_agent,
+        "platform": config.platform or "",
+        "acceptLanguage": ",".join(config.spoof_languages or config.locale),
+    }
+    user_agent_metadata = _build_user_agent_metadata(config)
+    if user_agent_metadata is not None:
+        override["userAgentMetadata"] = user_agent_metadata
+    return override
 
 
 def _log_fingerprint_runtime_state(driver: webdriver.Chrome, session_id: int | None) -> None:

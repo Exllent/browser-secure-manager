@@ -40,13 +40,51 @@
         return imageData;
     };
 
+    const secureBrowserCanvasState = (...values) => {
+        let state = secureBrowserCanvasNoiseSeed || 1;
+        for (const value of values) {
+            const text = String(value ?? '');
+            for (let index = 0; index < text.length; index += 1) {
+                state ^= text.charCodeAt(index);
+                state = Math.imul(state, 16777619) >>> 0;
+            }
+        }
+        return state || 1;
+    };
+
+    const secureBrowserNextCanvasState = (state) => (
+        (Math.imul(state >>> 0, 1664525) + 1013904223) >>> 0
+    );
+
+    const secureBrowserStableImageData = (context, width, height, salt = '') => {
+        const safeWidth = Math.max(1, Math.floor(Number(width) || 1));
+        const safeHeight = Math.max(1, Math.floor(Number(height) || 1));
+        const imageData = context && context.createImageData
+            ? context.createImageData(safeWidth, safeHeight)
+            : new ImageData(safeWidth, safeHeight);
+        const data = imageData.data;
+        let state = secureBrowserCanvasState(safeWidth, safeHeight, salt);
+        for (let index = 0; index < data.length; index += 4) {
+            state = secureBrowserNextCanvasState(state);
+            data[index] = state & 255;
+            state = secureBrowserNextCanvasState(state);
+            data[index + 1] = state & 255;
+            state = secureBrowserNextCanvasState(state);
+            data[index + 2] = state & 255;
+            data[index + 3] = 255;
+        }
+        return imageData;
+    };
+
     const patchCanvas2DPrototype = (prototype, markerProperty) => {
         if (!prototype || prototype[markerProperty] || !prototype.getImageData) return;
         Object.defineProperty(prototype, markerProperty, { value: true });
         const originalGetImageData = prototype.getImageData;
         prototype.getImageData = new Proxy(originalGetImageData, {
             apply(target, thisArg, args) {
-                return applyCanvasFingerprint(Reflect.apply(target, thisArg, args));
+                const width = args.length > 2 ? args[2] : thisArg.canvas && thisArg.canvas.width;
+                const height = args.length > 3 ? args[3] : thisArg.canvas && thisArg.canvas.height;
+                return secureBrowserStableImageData(thisArg, width, height, 'worker-getImageData');
             }
         });
     };
@@ -67,8 +105,16 @@
                 try {
                     const context = thisArg.getContext('2d');
                     if (context) {
-                        const imageData = context.getImageData(0, 0, thisArg.width, thisArg.height);
-                        context.putImageData(applyCanvasFingerprint(imageData), 0, 0);
+                        context.putImageData(
+                            secureBrowserStableImageData(
+                                context,
+                                thisArg.width,
+                                thisArg.height,
+                                'worker-offscreen-export'
+                            ),
+                            0,
+                            0
+                        );
                     }
                 } catch (error) {}
                 return Reflect.apply(target, thisArg, args);

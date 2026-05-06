@@ -25,6 +25,42 @@ const applyCanvasFingerprint = (imageData) => {
     return imageData;
 };
 
+const secureBrowserCanvasState = (...values) => {
+    let state = secureBrowserCanvasSeed || 1;
+    for (const value of values) {
+        const text = String(value ?? '');
+        for (let index = 0; index < text.length; index += 1) {
+            state ^= text.charCodeAt(index);
+            state = Math.imul(state, 16777619) >>> 0;
+        }
+    }
+    return state || 1;
+};
+
+const secureBrowserNextCanvasState = (state) => (
+    (Math.imul(state >>> 0, 1664525) + 1013904223) >>> 0
+);
+
+const secureBrowserStableImageData = (context, width, height, salt = '') => {
+    const safeWidth = Math.max(1, Math.floor(Number(width) || 1));
+    const safeHeight = Math.max(1, Math.floor(Number(height) || 1));
+    const imageData = context && context.createImageData
+        ? context.createImageData(safeWidth, safeHeight)
+        : new ImageData(safeWidth, safeHeight);
+    const data = imageData.data;
+    let state = secureBrowserCanvasState(safeWidth, safeHeight, salt);
+    for (let index = 0; index < data.length; index += 4) {
+        state = secureBrowserNextCanvasState(state);
+        data[index] = state & 255;
+        state = secureBrowserNextCanvasState(state);
+        data[index + 1] = state & 255;
+        state = secureBrowserNextCanvasState(state);
+        data[index + 2] = state & 255;
+        data[index + 3] = 255;
+    }
+    return imageData;
+};
+
 const secureBrowserPatchCanvasImageData = (
     context,
     width,
@@ -43,8 +79,9 @@ const patchCanvas2DPrototype = (prototype, markerProperty) => {
     const originalGetImageData = prototype.getImageData;
     prototype.getImageData = new Proxy(originalGetImageData, {
         apply(target, thisArg, args) {
-            const imageData = Reflect.apply(target, thisArg, args);
-            return applyCanvasFingerprint(imageData);
+            const width = args.length > 2 ? args[2] : thisArg.canvas && thisArg.canvas.width;
+            const height = args.length > 3 ? args[3] : thisArg.canvas && thisArg.canvas.height;
+            return secureBrowserStableImageData(thisArg, width, height, 'getImageData');
         }
     });
 };
@@ -71,19 +108,16 @@ patchCanvas2DPrototype(
     '__secureBrowserOffscreenCanvas2DPatched'
 );
 
-const secureBrowserCopyCanvasForExport = (canvas) => {
+const secureBrowserStableHTMLCanvasForExport = (canvas) => {
     const clone = document.createElement('canvas');
     clone.width = canvas.width;
     clone.height = canvas.height;
     const cloneContext = clone.getContext('2d');
     if (!cloneContext) return null;
-    cloneContext.drawImage(canvas, 0, 0);
-    secureBrowserPatchCanvasImageData(
+    Reflect.apply(
+        originalCanvas2DPutImageData || CanvasRenderingContext2D.prototype.putImageData,
         cloneContext,
-        clone.width,
-        clone.height,
-        originalCanvas2DGetImageData,
-        originalCanvas2DPutImageData
+        [secureBrowserStableImageData(cloneContext, clone.width, clone.height, 'html-export'), 0, 0]
     );
     return clone;
 };
@@ -94,7 +128,7 @@ if (!HTMLCanvasElement.prototype.__secureBrowserCanvasExportPatched) {
     HTMLCanvasElement.prototype.toDataURL = new Proxy(originalToDataURL, {
         apply(target, thisArg, args) {
             try {
-                const clone = secureBrowserCopyCanvasForExport(thisArg);
+                const clone = secureBrowserStableHTMLCanvasForExport(thisArg);
                 if (clone) return Reflect.apply(target, clone, args);
             } catch (error) {}
             return Reflect.apply(target, thisArg, args);
@@ -108,7 +142,7 @@ if (originalToBlob && !HTMLCanvasElement.prototype.__secureBrowserCanvasBlobPatc
     HTMLCanvasElement.prototype.toBlob = new Proxy(originalToBlob, {
         apply(target, thisArg, args) {
             try {
-                const clone = secureBrowserCopyCanvasForExport(thisArg);
+                const clone = secureBrowserStableHTMLCanvasForExport(thisArg);
                 if (clone) return Reflect.apply(target, clone, args);
             } catch (error) {}
             return Reflect.apply(target, thisArg, args);
@@ -117,17 +151,15 @@ if (originalToBlob && !HTMLCanvasElement.prototype.__secureBrowserCanvasBlobPatc
 }
 
 if (window.OffscreenCanvas && OffscreenCanvas.prototype.convertToBlob) {
-    const secureBrowserCopyOffscreenCanvasForExport = (canvas) => {
+    const secureBrowserStableOffscreenCanvasForExport = (canvas) => {
         const clone = new OffscreenCanvas(canvas.width, canvas.height);
         const cloneContext = clone.getContext('2d');
         if (!cloneContext) return null;
-        cloneContext.drawImage(canvas, 0, 0);
-        secureBrowserPatchCanvasImageData(
-            cloneContext,
-            clone.width,
-            clone.height,
-            originalOffscreen2DGetImageData,
+        Reflect.apply(
             originalOffscreen2DPutImageData
+                || OffscreenCanvasRenderingContext2D.prototype.putImageData,
+            cloneContext,
+            [secureBrowserStableImageData(cloneContext, clone.width, clone.height, 'offscreen-export'), 0, 0]
         );
         return clone;
     };
@@ -137,7 +169,7 @@ if (window.OffscreenCanvas && OffscreenCanvas.prototype.convertToBlob) {
         OffscreenCanvas.prototype.convertToBlob = new Proxy(originalCanvasConvertToBlob, {
             apply(target, thisArg, args) {
                 try {
-                    const clone = secureBrowserCopyOffscreenCanvasForExport(thisArg);
+                    const clone = secureBrowserStableOffscreenCanvasForExport(thisArg);
                     if (clone) return Reflect.apply(target, clone, args);
                 } catch (error) {}
                 return Reflect.apply(target, thisArg, args);

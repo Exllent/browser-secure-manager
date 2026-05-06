@@ -69,6 +69,13 @@ def _configure_chromium_fingerprint_extension(
                 "manifest_version": 3,
                 "name": APP_CONFIG.chromium_extensions.fingerprint_extension_name,
                 "version": APP_CONFIG.chromium_extensions.fingerprint_extension_version,
+                "permissions": ["scripting", "tabs", "webNavigation"],
+                "host_permissions": ["<all_urls>"],
+                "background": {
+                    "service_worker": (
+                        APP_CONFIG.chromium_extensions.fingerprint_background_filename
+                    ),
+                },
                 "content_scripts": [
                     {
                         "matches": ["<all_urls>"],
@@ -88,12 +95,103 @@ def _configure_chromium_fingerprint_extension(
         script,
         encoding="utf-8",
     )
+    (extension_dir / APP_CONFIG.chromium_extensions.fingerprint_background_filename).write_text(
+        _build_fingerprint_background_script(),
+        encoding="utf-8",
+    )
     _add_chromium_extension(options, extension_dir)
     logger.info(
         "Fingerprint extension prepared at %s with canvas seed %s",
         extension_dir,
         getattr(config, "canvas_noise_seed", None),
     )
+
+
+def _build_fingerprint_background_script() -> str:
+    script_filename = json.dumps(APP_CONFIG.chromium_extensions.fingerprint_script_filename)
+    return f"""
+const secureBrowserFingerprintScript = {script_filename};
+const secureBrowserRegisteredScriptId = 'secure-browser-fingerprint-main-world';
+const secureBrowserInjectableProtocols = new Set(['http:', 'https:', 'file:']);
+
+const secureBrowserCanInject = (url) => {{
+    if (!url) return false;
+    try {{
+        return secureBrowserInjectableProtocols.has(new URL(url).protocol);
+    }} catch (error) {{
+        return false;
+    }}
+}};
+
+const secureBrowserInjectFingerprint = async (tabId) => {{
+    try {{
+        await chrome.scripting.executeScript({{
+            target: {{ tabId, allFrames: true }},
+            files: [secureBrowserFingerprintScript],
+            world: 'MAIN',
+            injectImmediately: true
+        }});
+    }} catch (error) {{
+        // chrome://, extension pages, and closed tabs are expected to reject injection.
+    }}
+}};
+
+const secureBrowserRegisterFingerprintScript = async () => {{
+    try {{
+        await chrome.scripting.unregisterContentScripts({{
+            ids: [secureBrowserRegisteredScriptId]
+        }});
+    }} catch (error) {{
+    }}
+
+    try {{
+        await chrome.scripting.registerContentScripts([{{
+            id: secureBrowserRegisteredScriptId,
+            matches: ['<all_urls>'],
+            js: [secureBrowserFingerprintScript],
+            runAt: 'document_start',
+            allFrames: true,
+            matchOriginAsFallback: true,
+            world: 'MAIN',
+            persistAcrossSessions: false
+        }}]);
+    }} catch (error) {{
+    }}
+}};
+
+secureBrowserRegisterFingerprintScript();
+
+chrome.runtime.onInstalled.addListener(() => {{
+    secureBrowserRegisterFingerprintScript();
+}});
+
+chrome.runtime.onStartup.addListener(() => {{
+    secureBrowserRegisterFingerprintScript();
+}});
+
+chrome.webNavigation.onCommitted.addListener((details) => {{
+    if (details.frameId !== 0 || !secureBrowserCanInject(details.url)) return;
+    secureBrowserInjectFingerprint(details.tabId);
+}});
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {{
+    const url = changeInfo.url || tab.pendingUrl || tab.url || '';
+    if (!secureBrowserCanInject(url)) return;
+    if (changeInfo.status === 'loading' || changeInfo.status === 'complete' || changeInfo.url) {{
+        secureBrowserInjectFingerprint(tabId);
+    }}
+}});
+
+chrome.tabs.onActivated.addListener(async (activeInfo) => {{
+    try {{
+        const tab = await chrome.tabs.get(activeInfo.tabId);
+        if (secureBrowserCanInject(tab.url || tab.pendingUrl || '')) {{
+            secureBrowserInjectFingerprint(activeInfo.tabId);
+        }}
+    }} catch (error) {{
+    }}
+}});
+""".strip()
 
 
 def _apply_chromium_fingerprint(

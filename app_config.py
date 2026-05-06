@@ -135,6 +135,7 @@ class ChromiumExtensionConfig:
     fingerprint_extension_dirname: str = "secure_browser_fingerprint_extension"
     fingerprint_extension_digest_length: int = 12
     fingerprint_script_filename: str = "fingerprint.js"
+    fingerprint_background_filename: str = "background.js"
     fingerprint_extension_name: str = "Secure Browser Fingerprint"
     fingerprint_extension_version: str = "1.0.0"
 
