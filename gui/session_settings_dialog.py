@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QSpinBox,
     QStackedWidget,
     QTextEdit,
@@ -21,9 +22,11 @@ from PySide6.QtWidgets import (
 from app.app_service import AppService
 from app.i18n import _
 from app_config import APP_CONFIG
-from models.fingerprint_config import FingerprintConfig
 from models.fingerprint_profile import FingerprintProfile
 from models.session_entry import SessionEntry
+
+COMPACT_COMBO_WIDTH = 320
+COMPACT_SPIN_WIDTH = 120
 
 
 class SessionSettingsDialog(QDialog):
@@ -44,17 +47,21 @@ class SessionSettingsDialog(QDialog):
         self.url_edit.setPlaceholderText(APP_CONFIG.gui.default_session_url_placeholder)
 
         self.browser_combo = QComboBox()
+        self.browser_combo.setFixedWidth(COMPACT_COMBO_WIDTH)
         self._load_browsers(session.browser)
 
         self.profile_path_edit = QLineEdit(session.profile_path)
         self.profile_path_edit.setPlaceholderText(APP_CONFIG.gui.profile_path_placeholder)
         self.choose_profile_path_button = QPushButton(_("Choose"))
+        self.choose_profile_path_button.setFixedWidth(100)
         self.choose_profile_path_button.clicked.connect(self.choose_profile_path)
 
         self.proxy_combo = QComboBox()
+        self.proxy_combo.setFixedWidth(COMPACT_COMBO_WIDTH)
         self._load_proxies(session.proxy_id)
 
         self.fingerprint_combo = QComboBox()
+        self.fingerprint_combo.setFixedWidth(COMPACT_COMBO_WIDTH)
         self._load_fingerprints(session.fingerprint_id)
 
         self.proxy_label_edit = QLineEdit(session.proxy_label)
@@ -67,10 +74,12 @@ class SessionSettingsDialog(QDialog):
         self.width_spin = QSpinBox()
         self.width_spin.setRange(*APP_CONFIG.gui.window_width_range)
         self.width_spin.setValue(session.window_width)
+        self.width_spin.setFixedWidth(COMPACT_SPIN_WIDTH)
 
         self.height_spin = QSpinBox()
         self.height_spin.setRange(*APP_CONFIG.gui.window_height_range)
         self.height_spin.setValue(session.window_height)
+        self.height_spin.setFixedWidth(COMPACT_SPIN_WIDTH)
 
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
@@ -95,6 +104,7 @@ class SessionSettingsDialog(QDialog):
             self.window_button,
             self.notes_button,
         ):
+            button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
             nav_layout.addWidget(button)
         nav_layout.addStretch(1)
 
@@ -184,7 +194,7 @@ class SessionSettingsDialog(QDialog):
         content = QWidget()
         form = QFormLayout(content)
         form.addRow(_("Start URL"), self.url_edit)
-        form.addRow(_("Browser"), self.browser_combo)
+        form.addRow(_("Browser"), _compact_row(self.browser_combo))
         return self._scroll_page(content)
 
     def _build_profile_page(self) -> QWidget:
@@ -208,14 +218,14 @@ class SessionSettingsDialog(QDialog):
     def _build_proxy_page(self) -> QWidget:
         content = QWidget()
         form = QFormLayout(content)
-        form.addRow(_("Selected proxy"), self.proxy_combo)
+        form.addRow(_("Selected proxy"), _compact_row(self.proxy_combo))
         form.addRow(_("Proxy note"), self.proxy_label_edit)
         return self._scroll_page(content)
 
     def _build_fingerprint_page(self) -> QWidget:
         content = QWidget()
         form = QFormLayout(content)
-        form.addRow(_("Selected fingerprint"), self.fingerprint_combo)
+        form.addRow(_("Selected fingerprint"), _compact_row(self.fingerprint_combo))
         note = QLabel(_("Create and edit fingerprints in Application settings."))
         note.setWordWrap(True)
         form.addRow("", note)
@@ -224,8 +234,8 @@ class SessionSettingsDialog(QDialog):
     def _build_window_page(self) -> QWidget:
         content = QWidget()
         form = QFormLayout(content)
-        form.addRow(_("Width"), self.width_spin)
-        form.addRow(_("Height"), self.height_spin)
+        form.addRow(_("Width"), _compact_row(self.width_spin))
+        form.addRow(_("Height"), _compact_row(self.height_spin))
         return self._scroll_page(content)
 
     def _build_notes_page(self) -> QWidget:
@@ -253,31 +263,12 @@ class SessionSettingsDialog(QDialog):
 
 
 def _fingerprint_combo_label(profile: FingerprintProfile) -> str:
-    config = profile.config
-    details: list[str] = []
-    if profile.id is not None:
-        details.append(f"#{profile.id}")
-
-    os_label = _fingerprint_os_label(config)
-    if os_label:
-        details.append(os_label)
-    if config.platform:
-        details.append(config.platform)
-    if config.canvas_noise_seed is not None:
-        details.append(f"canvas {config.canvas_noise_seed}")
-
-    if not details:
-        return profile.display_name()
-    return f"{profile.display_name()} ({' / '.join(details)})"
+    return profile.display_name()
 
 
-def _fingerprint_os_label(config: FingerprintConfig) -> str:
-    user_agent = config.user_agent or ""
-    platform = config.platform or ""
-    if "Windows NT" in user_agent or platform in {"Win32", "Win64"}:
-        return "Windows"
-    if "Macintosh" in user_agent or platform == "MacIntel":
-        return "macOS"
-    if "Linux" in user_agent or "X11" in user_agent or platform.startswith("Linux"):
-        return "Linux"
-    return ""
+def _compact_row(widget: QWidget) -> QHBoxLayout:
+    row = QHBoxLayout()
+    row.setContentsMargins(0, 0, 0, 0)
+    row.addWidget(widget)
+    row.addStretch(1)
+    return row

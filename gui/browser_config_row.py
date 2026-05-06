@@ -24,6 +24,7 @@ class BrowserConfigRow(QWidget):
     def __init__(self, config: BrowserConfig, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._config_id = config.id
+        self._config_key = config.key
 
         self.enabled_check = QCheckBox()
         self.enabled_check.setChecked(config.enabled)
@@ -31,10 +32,6 @@ class BrowserConfigRow(QWidget):
         self.name_edit = QLineEdit(config.display_name)
         self.name_edit.setPlaceholderText(_("Name"))
         self.name_edit.setMinimumWidth(140)
-
-        self.key_edit = QLineEdit(config.key)
-        self.key_edit.setPlaceholderText(_("Key"))
-        self.key_edit.setMinimumWidth(110)
 
         self.type_combo = QComboBox()
         self.type_combo.addItem(_("Chromium-based"), APP_CONFIG.storage.default_browser_type)
@@ -52,7 +49,6 @@ class BrowserConfigRow(QWidget):
         layout.setContentsMargins(4, 4, 4, 4)
         layout.addWidget(self.enabled_check)
         layout.addWidget(self.name_edit)
-        layout.addWidget(self.key_edit)
         layout.addWidget(self.type_combo)
         layout.addWidget(self.path_edit, 1)
         layout.addWidget(self.browse_button)
@@ -74,7 +70,7 @@ class BrowserConfigRow(QWidget):
         display_name = self.name_edit.text().strip()
         return BrowserConfig(
             id=self._config_id,
-            key=self.key_edit.text().strip() or _make_browser_key(display_name),
+            key=self._config_key.strip() or _make_browser_key(display_name),
             display_name=display_name,
             browser_type=str(self.type_combo.currentData()),
             executable_path=self.path_edit.text().strip(),
