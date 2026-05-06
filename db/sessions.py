@@ -5,12 +5,14 @@ from pathlib import Path
 
 from models.session_entry import SessionEntry
 
+from app_config import APP_CONFIG
+
 from . import config
 from .mappers import row_to_session
 
 
 def default_profile_path(session_id: int) -> str:
-    return str(config.PROFILES_DIR / f"session_{session_id}")
+    return str(config.PROFILES_DIR / f"{APP_CONFIG.storage.session_profile_prefix}{session_id}")
 
 
 def normalize_profile_path(profile_path: str, session_id: int) -> str:
@@ -71,7 +73,7 @@ def create_session(
             (
                 session.name,
                 session.url,
-                session.browser.strip() or "chrome",
+                session.browser.strip() or APP_CONFIG.storage.default_browser_key,
                 session.profile_path.strip(),
                 session.proxy_id,
                 session.fingerprint_id,
@@ -98,7 +100,7 @@ def create_session(
             id=session_id,
             name=session.name,
             url=session.url,
-            browser=session.browser.strip() or "chrome",
+            browser=session.browser.strip() or APP_CONFIG.storage.default_browser_key,
             profile_path=profile_path,
             proxy_id=session.proxy_id,
             fingerprint_id=session.fingerprint_id,
@@ -142,7 +144,7 @@ def update_session(session: SessionEntry) -> SessionEntry:
             (
                 session.name,
                 session.url,
-                session.browser.strip() or "chrome",
+                session.browser.strip() or APP_CONFIG.storage.default_browser_key,
                 profile_path,
                 session.proxy_id,
                 session.fingerprint_id,

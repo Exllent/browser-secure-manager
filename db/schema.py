@@ -7,6 +7,8 @@ from typing import Iterable
 from models.browser_config import BrowserConfig
 from models.session_entry import SessionEntry
 
+from app_config import APP_CONFIG
+
 from . import config
 from .browsers import upsert_browser_config
 from .sessions import create_session
@@ -98,9 +100,9 @@ def init_db() -> None:
 def _seed_default_browser_configs(connection: sqlite3.Connection) -> None:
     config_record = BrowserConfig(
         id=None,
-        key="chrome",
-        display_name="Chrome / Chromium",
-        browser_type="chromium",
+        key=APP_CONFIG.storage.default_browser_key,
+        display_name=APP_CONFIG.storage.default_browser_display_name,
+        browser_type=APP_CONFIG.storage.default_browser_type,
         executable_path="",
     )
     existing = connection.execute(
@@ -114,16 +116,18 @@ def _seed_default_browser_configs(connection: sqlite3.Connection) -> None:
 
 def _remove_unsupported_browser_configs(connection: sqlite3.Connection) -> None:
     deleted = connection.execute(
-        "DELETE FROM browser_configs WHERE lower(browser_type) != 'chromium'"
+        "DELETE FROM browser_configs WHERE lower(browser_type) != ?",
+        (APP_CONFIG.storage.default_browser_type,),
     ).rowcount
     if deleted:
         logger.warning("Removed %s unsupported browser config(s)", deleted)
     connection.execute(
         """
         UPDATE sessions
-        SET browser = 'chrome'
+        SET browser = ?
         WHERE browser NOT IN (SELECT key FROM browser_configs)
-        """
+        """,
+        (APP_CONFIG.storage.default_browser_key,),
     )
 
 
@@ -161,14 +165,14 @@ def _demo_sessions() -> Iterable[SessionEntry]:
     return (
         SessionEntry(
             id=None,
-            name="Chrome demo",
-            url="https://www.python.org",
-            browser="chrome",
+            name=APP_CONFIG.storage.default_session_name,
+            url=APP_CONFIG.storage.default_session_url,
+            browser=APP_CONFIG.storage.default_browser_key,
             profile_path="",
             proxy_id=None,
             fingerprint_id=None,
-            proxy_label="local profile",
+            proxy_label=APP_CONFIG.storage.default_session_proxy_label,
             custom_user_agent="",
-            notes="Demo Chrome session with its own browser profile.",
+            notes=APP_CONFIG.storage.default_session_notes,
         ),
     )

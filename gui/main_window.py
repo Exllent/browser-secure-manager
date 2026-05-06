@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 
 from app.app_service import AppService
 from app.i18n import _
+from app_config import APP_CONFIG
 from gui.app_settings_dialog import AppSettingsDialog
 from gui.session_row_widget import SESSION_TABLE_COLUMNS, SessionRowWidget
 from models.browser_config import BrowserConfig
@@ -31,7 +32,7 @@ class MainWindow(QMainWindow):
     def __init__(self, app_service: AppService) -> None:
         super().__init__()
         self.setWindowTitle(_("Isolated Browser Sessions"))
-        self.resize(1160, 720)
+        self.resize(*APP_CONFIG.gui.main_window_size)
 
         self.app_service = app_service
         self.rows: dict[int, SessionRowWidget] = {}
@@ -76,7 +77,7 @@ class MainWindow(QMainWindow):
         self.stop_all_button.clicked.connect(self.stop_all)
 
         self.process_timer = QTimer(self)
-        self.process_timer.setInterval(500)
+        self.process_timer.setInterval(APP_CONFIG.gui.main_poll_interval_ms)
         self.process_timer.timeout.connect(self.poll_session_processes)
         self.process_timer.start()
 
@@ -113,7 +114,7 @@ class MainWindow(QMainWindow):
                 id=None,
                 name=_("New session"),
                 url="about:blank",
-                browser="chrome",
+                browser=APP_CONFIG.storage.default_browser_key,
                 profile_path="",
             )
         )
@@ -127,8 +128,8 @@ class MainWindow(QMainWindow):
         path, selected_filter = QFileDialog.getSaveFileName(
             self,
             _("Save backup"),
-            "secure_browser_backup.json",
-            "Backup files (*.json);;All files (*)",
+            APP_CONFIG.gui.default_backup_filename,
+            APP_CONFIG.gui.backup_file_filter,
         )
         if not path:
             return
@@ -154,8 +155,8 @@ class MainWindow(QMainWindow):
         path, selected_filter = QFileDialog.getSaveFileName(
             self,
             _("Save backup"),
-            f"session_{saved.id}_backup.json",
-            "Backup files (*.json);;All files (*)",
+            f"{APP_CONFIG.storage.session_profile_prefix}{saved.id}_backup.json",
+            APP_CONFIG.gui.backup_file_filter,
         )
         if not path:
             return
@@ -178,7 +179,7 @@ class MainWindow(QMainWindow):
             self,
             _("Load backup"),
             "",
-            "Backup files (*.json);;All files (*)",
+            APP_CONFIG.gui.backup_file_filter,
         )
         if not path:
             return

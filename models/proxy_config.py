@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from app_config import APP_CONFIG
+
 
 @dataclass(slots=True)
 class ProxyConfig:
@@ -9,14 +11,18 @@ class ProxyConfig:
     label: str
     host: str
     port: int
-    proxy_type: str = "socks5"
+    proxy_type: str = APP_CONFIG.proxies.default_type
     username: str = ""
     password: str = ""
     enabled: bool = True
 
     def normalized_type(self) -> str:
         proxy_type = self.proxy_type.strip().lower()
-        return proxy_type if proxy_type in {"http", "socks4", "socks5"} else "socks5"
+        return (
+            proxy_type
+            if proxy_type in APP_CONFIG.proxies.supported_types
+            else APP_CONFIG.proxies.default_type
+        )
 
     def display_name(self) -> str:
         label = self.label.strip()

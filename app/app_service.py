@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app.logging_config import export_log_file
+from app_config import APP_CONFIG
 from browser_backends.base import BrowserBackend
 from db import storage
 from app.session_process import SessionProcessEvent, SessionProcessManager
@@ -115,6 +116,16 @@ class AppService:
                 error_title="Fingerprint not found",
                 error_message="The selected fingerprint was not found or is disabled in application settings.",
             )
+        if (
+            fingerprint_profile is not None
+            and getattr(fingerprint_profile.config, "canvas_noise_seed", None) is None
+        ):
+            fingerprint_profile.config.ensure_canvas_noise_seed()
+            fingerprint_profile = storage.upsert_fingerprint_profile(fingerprint_profile)
+            logger.info(
+                "Assigned canvas seed to fingerprint profile %s before launch",
+                fingerprint_profile.id,
+            )
 
         try:
             self.session_processes.start_session(
@@ -125,7 +136,7 @@ class AppService:
             )
         except Exception as exc:
             logger.exception("Failed to start session process for session %s", saved.id)
-            saved.status = "error"
+            saved.status = APP_CONFIG.session_process.error_state
             storage.update_session(saved)
             return OpenSessionResult(
                 session=saved,
@@ -133,7 +144,7 @@ class AppService:
                 error_message=str(exc),
             )
 
-        saved.status = "starting"
+        saved.status = APP_CONFIG.session_process.starting_state
         saved = storage.update_session(saved)
         logger.info("Session %s moved to starting state", saved.id)
         return OpenSessionResult(session=saved)
@@ -143,7 +154,7 @@ class AppService:
         self.session_processes.kill_session(session_id)
         session = self._get_session(session_id)
         if session is not None:
-            session.status = "stopped"
+            session.status = APP_CONFIG.session_process.stopped_state
             storage.update_session(session)
 
     def close_all_sessions(self) -> None:
@@ -151,7 +162,7 @@ class AppService:
         self.session_processes.kill_all()
         self.browser_backend.close_all()
         for session in storage.get_all_sessions():
-            session.status = "stopped"
+            session.status = APP_CONFIG.session_process.stopped_state
             storage.update_session(session)
 
     def poll_session_process_events(self) -> list[SessionProcessEvent]:
@@ -162,17 +173,17 @@ class AppService:
             session = self._get_session(event.session_id)
             if session is None:
                 continue
-            if event.type == "started":
+            if event.type == APP_CONFIG.session_process.started_event:
                 logger.info("Session %s reported running", event.session_id)
-                session.status = "running"
+                session.status = APP_CONFIG.session_process.running_state
                 storage.update_session(session)
-            elif event.type == "failed":
+            elif event.type == APP_CONFIG.session_process.failed_state:
                 logger.error("Session %s reported failure: %s", event.session_id, event.message)
-                session.status = "error"
+                session.status = APP_CONFIG.session_process.error_state
                 storage.update_session(session)
-            elif event.type == "stopped":
+            elif event.type == APP_CONFIG.session_process.stopped_state:
                 logger.info("Session %s reported stopped", event.session_id)
-                session.status = "stopped"
+                session.status = APP_CONFIG.session_process.stopped_state
                 storage.update_session(session)
         return events
 
@@ -180,13 +191,20 @@ class AppService:
         events = self.poll_session_process_events()
         active_ids = self.session_processes.active_session_ids()
         for session in storage.get_all_sessions():
-            if session.status in {"starting", "running"} and session.id not in active_ids:
+            if (
+                session.status
+                in {
+                    APP_CONFIG.session_process.starting_state,
+                    APP_CONFIG.session_process.running_state,
+                }
+                and session.id not in active_ids
+            ):
                 logger.warning(
                     "Session %s was marked %s but has no active process; marking stopped",
                     session.id,
                     session.status,
                 )
-                session.status = "stopped"
+                session.status = APP_CONFIG.session_process.stopped_state
                 storage.update_session(session)
         return events
 
@@ -264,7 +282,7 @@ class AppService:
         storage.set_setting(key, value)
 
     def confirm_before_delete(self) -> bool:
-        return self.get_setting("confirm_before_delete", "1") != "0"
+        return self.get_setting(APP_CONFIG.settings_keys.confirm_before_delete, "1") != "0"
 
     def profile_cache_enabled(self) -> bool:
         return storage.is_profile_cache_enabled()

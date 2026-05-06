@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
 
 from app.app_service import AppService
 from app.i18n import _, load_language
+from app_config import APP_CONFIG
 from models.browser_config import BrowserConfig
 from models.fingerprint_config import FingerprintConfig
 from models.fingerprint_generator import generate_fingerprint_profile
@@ -44,7 +45,7 @@ class AppSettingsDialog(QDialog):
     def __init__(self, app_service: AppService, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle(_("Application settings"))
-        self.resize(980, 620)
+        self.resize(*APP_CONFIG.gui.app_settings_size)
 
         self.app_service = app_service
         self.browser_rows: list[BrowserConfigRow] = []
@@ -54,7 +55,7 @@ class AppSettingsDialog(QDialog):
         self.deleted_proxy_ids: list[int] = []
         self.deleted_fingerprint_ids: list[int] = []
         self.thread_pool = QThreadPool.globalInstance()
-        self.thread_pool.setMaxThreadCount(32)
+        self.thread_pool.setMaxThreadCount(APP_CONFIG.gui.proxy_test_thread_count)
 
         self.general_button = QPushButton(_("General"))
         self.browsers_button = QPushButton(_("Browsers"))
@@ -110,15 +111,17 @@ class AppSettingsDialog(QDialog):
         self.profile_cache_check = QCheckBox(_("Keep deleted session profiles"))
         self.profile_cache_check.setChecked(self.app_service.profile_cache_enabled())
         self.profile_cache_days_combo = QComboBox()
-        for label, value in (
-            (_("1 day"), "1"),
-            (_("3 days"), "3"),
-            (_("7 days"), "7"),
-            (_("30 days"), "30"),
-            (_("90 days"), "90"),
-            (_("120 days"), "120"),
-            (_("Forever"), "forever"),
-        ):
+        labels_by_value = {
+            "1": _("1 day"),
+            "3": _("3 days"),
+            "7": _("7 days"),
+            "30": _("30 days"),
+            "90": _("90 days"),
+            "120": _("120 days"),
+            APP_CONFIG.profile_cache.forever_value: _("Forever"),
+        }
+        for value in APP_CONFIG.profile_cache.day_options:
+            label = labels_by_value[value]
             self.profile_cache_days_combo.addItem(label, value)
         index = self.profile_cache_days_combo.findData(self.app_service.profile_cache_days())
         self.profile_cache_days_combo.setCurrentIndex(max(index, 0))
@@ -134,8 +137,12 @@ class AppSettingsDialog(QDialog):
         layout.addWidget(self.export_error_logs_button)
         layout.addStretch(1)
         self.profile_cache_check.toggled.connect(self.profile_cache_days_combo.setEnabled)
-        self.export_all_logs_button.clicked.connect(lambda: self.export_logs("all"))
-        self.export_error_logs_button.clicked.connect(lambda: self.export_logs("errors"))
+        self.export_all_logs_button.clicked.connect(
+            lambda: self.export_logs(APP_CONFIG.logging.all_kind)
+        )
+        self.export_error_logs_button.clicked.connect(
+            lambda: self.export_logs(APP_CONFIG.logging.errors_kind)
+        )
         return page
 
     def _build_browser_page(self) -> QWidget:
@@ -255,9 +262,9 @@ class AppSettingsDialog(QDialog):
         self.language_combo.view().setMinimumHeight(216)
         self.language_combo.view().setMaximumHeight(216)
         self.language_combo.view().setBaseSize(QSize(0, 216))
-        self.language_combo.addItem("English", "en")
-        self.language_combo.addItem("Русский", "ru")
-        language = self.app_service.get_setting("language", "en")
+        for label, language_code in APP_CONFIG.gui.language_options:
+            self.language_combo.addItem(label, language_code)
+        language = self.app_service.get_setting(APP_CONFIG.settings_keys.language, "en")
         index = self.language_combo.findData(language)
         self.language_combo.setCurrentIndex(max(index, 0))
         layout.addWidget(self.language_combo)
@@ -309,7 +316,7 @@ class AppSettingsDialog(QDialog):
                 id=None,
                 key=key,
                 display_name="New browser",
-                browser_type="chromium",
+                browser_type=APP_CONFIG.storage.default_browser_type,
                 executable_path="",
                 enabled=True,
             )
@@ -322,7 +329,7 @@ class AppSettingsDialog(QDialog):
                 label="New proxy",
                 host="",
                 port=8080,
-                proxy_type="socks5",
+                proxy_type=APP_CONFIG.proxies.default_type,
                 username="",
                 password="",
                 enabled=True,
@@ -334,13 +341,14 @@ class AppSettingsDialog(QDialog):
             FingerprintProfile(
                 id=None,
                 name=self._unique_fingerprint_name(_("New fingerprint")),
-                config=FingerprintConfig(),
+                config=FingerprintConfig().ensure_canvas_noise_seed(),
                 enabled=True,
             )
         )
 
     def generate_fingerprint(self) -> None:
-        profile = generate_fingerprint_profile(self._unique_fingerprint_name(_("Generated fingerprint")))
+        profile = generate_fingerprint_profile()
+        profile.name = self._unique_fingerprint_name(profile.name)
         self._add_fingerprint_row(profile)
 
     def import_proxy_csv(self) -> None:
@@ -348,7 +356,7 @@ class AppSettingsDialog(QDialog):
             self,
             _("Choose proxy CSV file"),
             "",
-            "CSV files (*.csv);;All files (*)",
+            APP_CONFIG.gui.csv_file_filter,
         )
         if not path:
             return
@@ -386,12 +394,16 @@ class AppSettingsDialog(QDialog):
         logger.info("Proxy CSV import added %s proxy row(s)", added)
 
     def export_logs(self, kind: str) -> None:
-        default_name = "secure_browser.log" if kind == "all" else "secure_browser_errors.log"
+        default_name = (
+            APP_CONFIG.logging.app_log_filename
+            if kind == APP_CONFIG.logging.all_kind
+            else APP_CONFIG.logging.error_log_filename
+        )
         path, selected_filter = QFileDialog.getSaveFileName(
             self,
             _("Export logs"),
             default_name,
-            "Log files (*.log);;All files (*)",
+            APP_CONFIG.gui.log_file_filter,
         )
         if not path:
             return
@@ -482,18 +494,21 @@ class AppSettingsDialog(QDialog):
                 self.app_service.save_fingerprint_profile(profile)
 
             language = str(self.language_combo.currentData() or "en")
-            self.app_service.set_setting("language", language)
+            self.app_service.set_setting(APP_CONFIG.settings_keys.language, language)
             self.app_service.set_setting(
-                "confirm_before_delete",
+                APP_CONFIG.settings_keys.confirm_before_delete,
                 "1" if self.confirm_before_delete_check.isChecked() else "0",
             )
             self.app_service.set_setting(
-                "profile_cache_enabled",
+                APP_CONFIG.settings_keys.profile_cache_enabled,
                 "1" if self.profile_cache_check.isChecked() else "0",
             )
             self.app_service.set_setting(
-                "profile_cache_days",
-                str(self.profile_cache_days_combo.currentData() or "1"),
+                APP_CONFIG.settings_keys.profile_cache_days,
+                str(
+                    self.profile_cache_days_combo.currentData()
+                    or APP_CONFIG.profile_cache.days_default
+                ),
             )
             load_language(language)
         except Exception as exc:

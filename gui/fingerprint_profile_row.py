@@ -72,7 +72,9 @@ class FingerprintProfileRow(QWidget):
         return FingerprintProfile(
             id=self._profile_id,
             name=self.name_edit.text().strip(),
-            config=FingerprintConfig.from_dict(self._config.to_dict()),
+            config=FingerprintConfig.from_dict(
+                self._config.to_dict(),
+            ).ensure_canvas_noise_seed(),
             enabled=self.enabled_check.isChecked(),
         )
 

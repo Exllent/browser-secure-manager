@@ -12,15 +12,49 @@ from browser_backends.fingerprint.templates import JS_DIR
 from browser_backends import selenium_backend as selenium_backend_module
 from browser_backends.selenium_backend import (
     SeleniumBrowserBackend,
+    _apply_chromium_fingerprint,
     _build_chromium_fingerprint_script,
     _build_user_agent_metadata,
     _configure_chromium_fingerprint_extension,
     _configure_default_extensions,
+    _log_fingerprint_runtime_state,
     _webrtc_leak_prevent_extension_path,
 )
+from app_config import APP_CONFIG
 from models.browser_config import BrowserConfig
 from models.fingerprint_config import FingerprintConfig
 from models.session_entry import SessionEntry
+
+
+class _LegacyFingerprintConfig:
+    hide_automation = True
+    hide_headless = True
+    spoof_plugins = True
+    spoof_languages: list[str] = []
+    user_agent = None
+    canvas_mode = "noise"
+    canvas_noise_level = 0.02
+    webgl_vendor = None
+    webgl_renderer = None
+    audio_noise = False
+    font_list: list[str] = []
+    font_spoof_count = 0
+    timezone = None
+    geolocation = None
+    locale: list[str] = []
+    webrtc_mode = "proxy_dns"
+    hardware_concurrency = None
+    device_memory = None
+    platform = None
+    tls_profile = None
+    spoof_touch_support = True
+    spoof_connection = True
+    spoof_permissions = True
+    spoof_feature_detection = True
+    hide_adblock_signs = False
+    spoof_battery = True
+    custom_js_before_load: list[str] = []
+    custom_js_after_load: list[str] = []
 
 
 class SeleniumFingerprintScriptTest(unittest.TestCase):
@@ -121,11 +155,25 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
             any(argument.startswith("--user-agent=") for argument in options.arguments)
         )
 
+    def test_runtime_state_verification_reads_preload_marker(self) -> None:
+        driver = mock.Mock()
+        driver.execute_script.return_value = {
+            "marker": True,
+            "platform": "Win32",
+            "webdriver": None,
+            "userAgent": "Mozilla/5.0",
+        }
+
+        _log_fingerprint_runtime_state(driver, 1)
+
+        driver.execute_script.assert_called_once()
+
     def test_script_contains_canvas_webgl_and_font_patches(self) -> None:
         script = _build_chromium_fingerprint_script(
             FingerprintConfig(
                 canvas_mode="noise",
                 canvas_noise_level=0.02,
+                canvas_noise_seed=123456789,
                 webgl_vendor="Google Inc. (NVIDIA)",
                 webgl_renderer="ANGLE (NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0)",
                 font_list=["Arial", "Calibri"],
@@ -139,6 +187,10 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
         self.assertIn("HTMLCanvasElement.prototype.toDataURL", script)
         self.assertIn("HTMLCanvasElement.prototype.toBlob", script)
         self.assertIn("OffscreenCanvas.prototype.convertToBlob", script)
+        self.assertIn("secureBrowserCopyCanvasForExport", script)
+        self.assertIn("__secureBrowserCanvasExportPatched", script)
+        self.assertIn("secureBrowserCopyOffscreenCanvasForExport", script)
+        self.assertIn('"seed": 123456789', script)
         self.assertIn("WEBGL_debug_renderer_info", script)
         self.assertIn("WebGLRenderingContext", script)
         self.assertIn("secureBrowserWeakWebGLNoise", script)
@@ -158,6 +210,24 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
         self.assertNotIn("__SECURE_BROWSER_CONFIG__", script)
         self.assertNotIn("__SECURE_BROWSER_WORKER_SCRIPT__", script)
 
+    def test_canvas_patch_changes_with_canvas_seed(self) -> None:
+        first = _build_chromium_fingerprint_script(
+            FingerprintConfig(canvas_noise_seed=111, audio_noise=False)
+        )
+        second = _build_chromium_fingerprint_script(
+            FingerprintConfig(canvas_noise_seed=222, audio_noise=False)
+        )
+
+        self.assertIn('"seed": 111', first)
+        self.assertIn('"seed": 222', second)
+        self.assertNotEqual(first, second)
+
+    def test_canvas_patch_accepts_legacy_config_without_canvas_seed(self) -> None:
+        script = _build_chromium_fingerprint_script(_LegacyFingerprintConfig())  # type: ignore[arg-type]
+
+        self.assertIn("secureBrowserCanvasSeed", script)
+        self.assertIn('"seed": ', script)
+
     def test_fingerprint_js_templates_are_present(self) -> None:
         expected_templates = {
             "audio.js",
@@ -165,6 +235,7 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
             "content_filter.js",
             "features_core.js",
             "fonts.js",
+            "geolocation.js",
             "headless.js",
             "webgl.js",
             "worker_fingerprint.js",
@@ -222,6 +293,39 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
         self.assertIn("Navigator.prototype.getBattery", script)
         self.assertIn("navigator.permissions.query", script)
 
+    def test_script_contains_geolocation_patch_when_configured(self) -> None:
+        script = _build_chromium_fingerprint_script(
+            FingerprintConfig(geolocation=(55.755826, 37.6173))
+        )
+
+        self.assertIn("secureBrowserGeolocationConfig", script)
+        self.assertIn("Navigator.prototype, 'geolocation'", script)
+        self.assertIn('"latitude": 55.755826', script)
+        self.assertIn('"longitude": 37.6173', script)
+        self.assertIn('geolocation: "granted"', script)
+
+    def test_apply_chromium_fingerprint_grants_geolocation_permission(self) -> None:
+        driver = mock.Mock()
+        config = FingerprintConfig(geolocation=(55.755826, 37.6173))
+
+        _apply_chromium_fingerprint(driver, config, "https://browserleaks.com/geo")
+
+        driver.execute_cdp_cmd.assert_any_call(
+            "Browser.grantPermissions",
+            {
+                "permissions": ["geolocation"],
+                "origin": "https://browserleaks.com",
+            },
+        )
+        driver.execute_cdp_cmd.assert_any_call(
+            "Emulation.setGeolocationOverride",
+            {
+                "latitude": 55.755826,
+                "longitude": 37.6173,
+                "accuracy": 100,
+            },
+        )
+
     def test_features_detection_patch_can_be_disabled(self) -> None:
         script = _build_chromium_fingerprint_script(
             FingerprintConfig(
@@ -275,6 +379,7 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
         _configure_default_extensions(options)
 
         self.assertIn(f"--load-extension={extension_path}", options.arguments)
+        self.assertIn(f"--disable-extensions-except={extension_path}", options.arguments)
         self.assertIn(
             "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
             options.arguments,
@@ -295,7 +400,15 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
             ),
         )
 
-        extension_dir = profile_dir / "secure_browser_fingerprint_extension"
+        extension_dirs = [
+            path
+            for path in profile_dir.iterdir()
+            if path.name.startswith(
+                f"{APP_CONFIG.chromium_extensions.fingerprint_extension_dirname}_"
+            )
+        ]
+        self.assertEqual(len(extension_dirs), 1)
+        extension_dir = extension_dirs[0]
         self.assertTrue((extension_dir / "manifest.json").is_file())
         self.assertTrue((extension_dir / "fingerprint.js").is_file())
 
@@ -307,6 +420,53 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
         self.assertEqual(len(load_extension_args), 1)
         self.assertIn(str(_webrtc_leak_prevent_extension_path()), load_extension_args[0])
         self.assertIn(str(extension_dir), load_extension_args[0])
+        enable_extension_args = [
+            argument
+            for argument in options.arguments
+            if argument.startswith("--disable-extensions-except=")
+        ]
+        self.assertEqual(len(enable_extension_args), 1)
+        self.assertIn(str(_webrtc_leak_prevent_extension_path()), enable_extension_args[0])
+        self.assertIn(str(extension_dir), enable_extension_args[0])
+
+    def test_fingerprint_extension_path_changes_with_script_digest(self) -> None:
+        profile_dir = Path(tempfile.mkdtemp())
+        stale_dir = profile_dir / APP_CONFIG.chromium_extensions.fingerprint_extension_dirname
+        stale_dir.mkdir()
+        (stale_dir / "fingerprint.js").write_text("old", encoding="utf-8")
+
+        first_options = ChromeOptions()
+        _configure_chromium_fingerprint_extension(
+            first_options,
+            profile_dir,
+            FingerprintConfig(canvas_noise_seed=111),
+        )
+        first_extension_dirs = {
+            path.name
+            for path in profile_dir.iterdir()
+            if path.name.startswith(
+                f"{APP_CONFIG.chromium_extensions.fingerprint_extension_dirname}_"
+            )
+        }
+        self.assertEqual(len(first_extension_dirs), 1)
+        self.assertFalse(stale_dir.exists())
+
+        second_options = ChromeOptions()
+        _configure_chromium_fingerprint_extension(
+            second_options,
+            profile_dir,
+            FingerprintConfig(canvas_noise_seed=222),
+        )
+        second_extension_dirs = {
+            path.name
+            for path in profile_dir.iterdir()
+            if path.name.startswith(
+                f"{APP_CONFIG.chromium_extensions.fingerprint_extension_dirname}_"
+            )
+        }
+
+        self.assertEqual(len(second_extension_dirs), 1)
+        self.assertNotEqual(first_extension_dirs, second_extension_dirs)
 
 
 if __name__ == "__main__":

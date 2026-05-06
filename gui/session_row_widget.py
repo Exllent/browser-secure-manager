@@ -6,22 +6,14 @@ from PySide6.QtWidgets import QDialog, QGridLayout, QLabel, QLineEdit, QPushButt
 
 from app.app_service import AppService
 from app.i18n import _
+from app_config import APP_CONFIG
 from models.browser_config import BrowserConfig
 from models.session_entry import SessionEntry
 
 from .session_settings_dialog import SessionSettingsDialog
 from .session_status import _status_label
 
-SESSION_TABLE_COLUMNS = (
-    ("ID", 64),
-    ("Name", 360),
-    ("Status", 110),
-    ("Open", 72),
-    ("Stop", 72),
-    ("Settings", 92),
-    ("Save", 92),
-    ("Delete", 72),
-)
+SESSION_TABLE_COLUMNS = APP_CONFIG.gui.session_table_columns
 
 
 class SessionRowWidget(QWidget):

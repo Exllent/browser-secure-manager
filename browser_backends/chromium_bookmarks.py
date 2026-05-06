@@ -6,19 +6,10 @@ import time
 from pathlib import Path
 from typing import Any
 
-DEFAULT_CHROMIUM_BOOKMARKS: tuple[tuple[str, str], ...] = (
-    ("BrowserLeaks", "https://browserleaks.com"),
-    ("HTTPBin IP", "https://httpbin.org/ip"),
-    (
-        "Chrome Headless Test",
-        "https://intoli.com/blog/not-possible-to-block-chrome-headless/chrome-headless-test.html",
-    ),
-)
+from app_config import APP_CONFIG
 
-BOOKMARK_URL_REPLACEMENTS = {
-    "https://browserleaks.com/tls": "https://browserleaks.com",
-    "http://browserleaks.com/tls": "https://browserleaks.com",
-}
+DEFAULT_CHROMIUM_BOOKMARKS = APP_CONFIG.bookmarks.default_bookmarks
+BOOKMARK_URL_REPLACEMENTS = dict(APP_CONFIG.bookmarks.url_replacements)
 
 
 def ensure_chromium_default_bookmarks(profile_dir: Path) -> None:

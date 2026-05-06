@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.i18n import _
+from app_config import APP_CONFIG
 from models.fingerprint_config import FingerprintConfig
 
 
@@ -25,7 +26,7 @@ class FingerprintConfigDialog(QDialog):
     def __init__(self, config: FingerprintConfig, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle(_("Fingerprint settings"))
-        self.resize(760, 680)
+        self.resize(*APP_CONFIG.gui.fingerprint_settings_size)
         self._config = FingerprintConfig.from_dict(config.to_dict())
 
         self.hide_automation_check = QCheckBox(_("Hide automation"))
@@ -44,12 +45,15 @@ class FingerprintConfigDialog(QDialog):
         self.locale_edit.setPlaceholderText("en-US, en")
 
         self.canvas_mode_combo = QComboBox()
-        for mode in ("noise", "fixed", "passthrough"):
+        for mode in APP_CONFIG.fingerprint_validation.canvas_modes:
             self.canvas_mode_combo.addItem(mode, mode)
         self.canvas_mode_combo.setCurrentIndex(max(self.canvas_mode_combo.findData(config.canvas_mode), 0))
 
         self.canvas_noise_spin = QDoubleSpinBox()
-        self.canvas_noise_spin.setRange(0.0, 0.1)
+        self.canvas_noise_spin.setRange(
+            APP_CONFIG.fingerprint_validation.canvas_noise_min,
+            APP_CONFIG.fingerprint_validation.canvas_noise_max,
+        )
         self.canvas_noise_spin.setSingleStep(0.01)
         self.canvas_noise_spin.setDecimals(3)
         self.canvas_noise_spin.setValue(config.canvas_noise_level)
@@ -61,7 +65,10 @@ class FingerprintConfigDialog(QDialog):
         self.audio_noise_check.setChecked(config.audio_noise)
         self.font_list_edit = QLineEdit(", ".join(config.font_list))
         self.font_spoof_count_spin = QSpinBox()
-        self.font_spoof_count_spin.setRange(0, 5)
+        self.font_spoof_count_spin.setRange(
+            APP_CONFIG.fingerprint_validation.font_spoof_min,
+            APP_CONFIG.fingerprint_validation.font_spoof_max,
+        )
         self.font_spoof_count_spin.setValue(config.font_spoof_count)
 
         self.timezone_edit = QLineEdit(config.timezone or "")
@@ -79,30 +86,33 @@ class FingerprintConfigDialog(QDialog):
         self.longitude_spin.setValue(config.geolocation[1] if config.geolocation else 0)
 
         self.webrtc_mode_combo = QComboBox()
-        for mode in ("disable", "public_ip_only", "proxy_dns", "passthrough"):
+        for mode in APP_CONFIG.fingerprint_validation.webrtc_modes:
             self.webrtc_mode_combo.addItem(mode, mode)
         self.webrtc_mode_combo.setCurrentIndex(max(self.webrtc_mode_combo.findData(config.webrtc_mode), 0))
 
         self.hardware_spin = QSpinBox()
-        self.hardware_spin.setRange(0, 128)
+        self.hardware_spin.setRange(
+            0,
+            APP_CONFIG.fingerprint_validation.hardware_concurrency_max,
+        )
         self.hardware_spin.setSpecialValueText(_("Browser default"))
         self.hardware_spin.setValue(config.hardware_concurrency or 0)
 
         self.device_memory_combo = QComboBox()
         self.device_memory_combo.addItem(_("Browser default"), None)
-        for value in (0.25, 0.5, 1, 2, 4, 8):
+        for value in APP_CONFIG.fingerprint_validation.device_memory_values:
             self.device_memory_combo.addItem(str(value), value)
         self.device_memory_combo.setCurrentIndex(max(self.device_memory_combo.findData(config.device_memory), 0))
 
         self.platform_combo = QComboBox()
         self.platform_combo.addItem(_("Browser default"), None)
-        for platform_name in ("Win32", "Win64", "MacIntel", "Linux x86_64", "Linux armv8l"):
+        for platform_name in APP_CONFIG.fingerprint_validation.platforms:
             self.platform_combo.addItem(platform_name, platform_name)
         self.platform_combo.setCurrentIndex(max(self.platform_combo.findData(config.platform), 0))
 
         self.tls_profile_combo = QComboBox()
         self.tls_profile_combo.addItem(_("No TLS profile"), None)
-        for profile_name in ("chrome_134", "chromium_134", "random"):
+        for profile_name in APP_CONFIG.fingerprint_validation.tls_profiles:
             self.tls_profile_combo.addItem(profile_name, profile_name)
         self.tls_profile_combo.setCurrentIndex(max(self.tls_profile_combo.findData(config.tls_profile), 0))
 
@@ -229,6 +239,7 @@ class FingerprintConfigDialog(QDialog):
             user_agent=self.user_agent_edit.text().strip() or None,
             canvas_mode=str(self.canvas_mode_combo.currentData() or "noise"),
             canvas_noise_level=self.canvas_noise_spin.value(),
+            canvas_noise_seed=getattr(self._config, "canvas_noise_seed", None),
             webgl_vendor=self.webgl_vendor_edit.text().strip() or None,
             webgl_renderer=self.webgl_renderer_edit.text().strip() or None,
             audio_noise=self.audio_noise_check.isChecked(),
@@ -250,7 +261,7 @@ class FingerprintConfigDialog(QDialog):
             spoof_battery=self.spoof_battery_check.isChecked(),
             custom_js_before_load=_split_pipe(self.before_js_edit.text()),
             custom_js_after_load=_split_pipe(self.after_js_edit.text()),
-        )
+        ).ensure_canvas_noise_seed()
 
     def _accept_if_valid(self) -> None:
         errors = self.to_config().validate()

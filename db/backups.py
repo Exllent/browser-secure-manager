@@ -13,6 +13,8 @@ from models.fingerprint_profile import FingerprintProfile
 from models.proxy_config import ProxyConfig
 from models.session_entry import SessionEntry
 
+from app_config import APP_CONFIG
+
 from . import config
 from .browsers import get_browser_config, get_browser_configs, make_browser_key
 from .fingerprints import get_fingerprint_profile, get_fingerprint_profiles
@@ -22,13 +24,13 @@ from .settings import get_all_settings
 
 logger = logging.getLogger(__name__)
 
-BACKUP_FORMAT = "secure_browser_backup"
-BACKUP_VERSION = 1
+BACKUP_FORMAT = APP_CONFIG.backups.format
+BACKUP_VERSION = APP_CONFIG.backups.version
 
 
 def export_full_backup(destination: str | Path) -> Path:
     destination_path = Path(destination).expanduser()
-    payload = _base_backup_payload("full")
+    payload = _base_backup_payload(APP_CONFIG.backups.full_scope)
     payload["data"] = _full_backup_data()
     _write_backup(destination_path, payload)
     logger.info("Full backup exported to %s", destination_path)
@@ -41,7 +43,7 @@ def export_session_backup(session_id: int, destination: str | Path) -> Path:
     if session is None:
         raise ValueError(f"Session {session_id} was not found")
 
-    payload = _base_backup_payload("session")
+    payload = _base_backup_payload(APP_CONFIG.backups.session_scope)
     payload["data"] = _session_backup_data(session)
     _write_backup(destination_path, payload)
     logger.info("Session %s backup exported to %s", session_id, destination_path)
@@ -66,9 +68,9 @@ def import_backup(source: str | Path) -> dict[str, int | str]:
     if not isinstance(data, dict):
         raise ValueError("Backup data must be an object")
 
-    if scope == "full":
+    if scope == APP_CONFIG.backups.full_scope:
         result = _import_full_backup_data(data)
-    elif scope == "session":
+    elif scope == APP_CONFIG.backups.session_scope:
         result = _import_session_backup_data(data)
     else:
         raise ValueError(f"Unsupported backup scope: {scope}")
@@ -134,7 +136,7 @@ def _write_backup(destination_path: Path, payload: dict[str, object]) -> None:
 
 def _session_to_backup_dict(session: SessionEntry) -> dict[str, object]:
     data = asdict(session)
-    data["status"] = "idle"
+    data["status"] = APP_CONFIG.storage.default_status
     return data
 
 
@@ -237,7 +239,7 @@ def _import_session_backup_data(data: dict[str, object]) -> dict[str, int]:
             if old_fingerprint_id is not None
             else None
         )
-        session_data["status"] = "idle"
+        session_data["status"] = APP_CONFIG.storage.default_status
         _insert_session_from_backup(connection, session_data)
 
     return {

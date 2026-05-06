@@ -10,6 +10,7 @@
     const secureBrowserCanvasNoise = secureBrowserWorkerConfig.canvasNoise;
     const secureBrowserCanvasMode = secureBrowserWorkerConfig.canvasMode;
     const secureBrowserWorkerFonts = new Set(secureBrowserWorkerConfig.fonts);
+    const secureBrowserCanvasNoiseSeed = secureBrowserWorkerConfig.canvasNoiseSeed >>> 0;
     const secureBrowserWebGLNoiseSeed = secureBrowserWorkerConfig.webglNoiseSeed;
     const fingerprintWebGLDebugInfo = {
         UNMASKED_VENDOR_WEBGL: 37445,
@@ -19,13 +20,22 @@
     const applyCanvasFingerprint = (imageData) => {
         if (!imageData || !imageData.data) return imageData;
         const data = imageData.data;
-        const step = secureBrowserCanvasMode === 'fixed'
-            ? 32
-            : Math.max(4, Math.floor(96 / Math.max(secureBrowserCanvasNoise, 1)));
-        for (let i = 0; i < data.length; i += step * 4) {
-            data[i] = (data[i] + secureBrowserCanvasNoise) & 255;
-            data[i + 1] = (data[i + 1] + 1) & 255;
-            data[i + 2] = (data[i + 2] + 2) & 255;
+        const pixelCount = Math.max(1, Math.floor(data.length / 4));
+        const patchCount = secureBrowserCanvasMode === 'fixed'
+            ? Math.max(1, Math.floor(pixelCount / 96))
+            : Math.max(1, Math.floor(pixelCount / Math.max(24, 144 - secureBrowserCanvasNoise)));
+        let state = secureBrowserCanvasNoiseSeed || 1;
+        for (let i = 0; i < patchCount; i += 1) {
+            state = (state * 1664525 + 1013904223) >>> 0;
+            const pixelIndex = state % pixelCount;
+            state = (state * 1664525 + 1013904223) >>> 0;
+            const channel = (pixelIndex * 4) + (state % 3);
+            if (channel >= data.length) continue;
+            const direction = secureBrowserCanvasMode === 'fixed'
+                ? 1
+                : ((state >>> 8) & 1) ? 1 : -1;
+            const delta = Math.max(1, secureBrowserCanvasNoise) * direction;
+            data[channel] = Math.max(0, Math.min(255, data[channel] + delta));
         }
         return imageData;
     };

@@ -46,6 +46,7 @@ def upsert_fingerprint_profile(
     owns_connection = connection is None
     active_connection = connection or config.connect()
     name = profile.display_name()
+    profile.config.ensure_canvas_noise_seed()
     errors = profile.config.validate()
     if errors:
         raise ValueError("; ".join(errors))

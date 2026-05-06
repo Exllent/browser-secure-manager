@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 JS_DIR = Path(__file__).resolve().parent / "js"
+CONFIG_PLACEHOLDER = "__SECURE_BROWSER_CONFIG__"
 
 
 @lru_cache(maxsize=None)
@@ -18,6 +19,6 @@ def _render_js_template(name: str, config: dict[str, Any] | None = None) -> str:
     if config is None:
         return source
     return source.replace(
-        "__SECURE_BROWSER_CONFIG__",
+        CONFIG_PLACEHOLDER,
         json.dumps(config, ensure_ascii=False, sort_keys=True),
     )

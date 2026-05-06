@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 from PySide6.QtCore import QCoreApplication, Qt, QTranslator
 
-_CONTEXT = "App"
+from app_config import APP_CONFIG
+
+_CONTEXT = APP_CONFIG.i18n.context
 _TRANSLATOR: QTranslator | None = None
 
 
@@ -32,8 +32,10 @@ def load_language(language_code: str) -> bool:
     if language_code == "en":
         return True
 
-    translations_dir = Path(__file__).resolve().parents[1] / "translations"
-    qm_path = translations_dir / f"app_{language_code}.qm"
+    qm_path = (
+        APP_CONFIG.paths.translations_dir
+        / f"{APP_CONFIG.i18n.translation_prefix}{language_code}{APP_CONFIG.i18n.translation_suffix}"
+    )
 
     translator = QTranslator()
     if not translator.load(str(qm_path)):

@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
+from app_config import APP_CONFIG
 from models.proxy_config import ProxyConfig
 
 
@@ -16,7 +17,10 @@ def parse_proxy_csv(path: Path) -> list[ProxyConfig]:
         for index, row in enumerate(reader, start=2):
             host = _csv_value(row, "ip", "host", "address")
             port_text = _csv_value(row, "port")
-            protocol = _csv_value(row, "protocols", "protocol", "type") or "socks5"
+            protocol = (
+                _csv_value(row, "protocols", "protocol", "type")
+                or APP_CONFIG.proxies.default_type
+            )
 
             if not host or not port_text:
                 continue
@@ -62,8 +66,8 @@ def _normalize_csv_protocol(value: str) -> str:
     protocol = value.strip().lower()
     if "," in protocol:
         protocol = protocol.split(",", 1)[0].strip()
-    if protocol in {"socks4", "socks5", "http"}:
+    if protocol in APP_CONFIG.proxies.supported_types:
         return protocol
     if protocol == "https":
         return "http"
-    return "socks5"
+    return APP_CONFIG.proxies.default_type

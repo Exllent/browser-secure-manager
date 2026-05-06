@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-SUPPORTED_BROWSER_TYPES = {"chromium"}
+from app_config import APP_CONFIG
+
+SUPPORTED_BROWSER_TYPES = set(APP_CONFIG.storage.supported_browser_types)
 
 
 @dataclass(slots=True)
@@ -16,4 +18,8 @@ class BrowserConfig:
 
     def normalized_type(self) -> str:
         browser_type = self.browser_type.strip().lower()
-        return browser_type if browser_type in SUPPORTED_BROWSER_TYPES else "chromium"
+        return (
+            browser_type
+            if browser_type in SUPPORTED_BROWSER_TYPES
+            else APP_CONFIG.storage.default_browser_type
+        )

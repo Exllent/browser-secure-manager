@@ -6,6 +6,7 @@ from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QCheckBox, QComboBox, QFileDialog, QHBoxLayout, QLineEdit, QPushButton, QWidget
 
 from app.i18n import _
+from app_config import APP_CONFIG
 from models.browser_config import BrowserConfig
 
 
@@ -28,7 +29,7 @@ class BrowserConfigRow(QWidget):
         self.key_edit.setMinimumWidth(110)
 
         self.type_combo = QComboBox()
-        self.type_combo.addItem(_("Chromium-based"), "chromium")
+        self.type_combo.addItem(_("Chromium-based"), APP_CONFIG.storage.default_browser_type)
         index = self.type_combo.findData(config.normalized_type())
         self.type_combo.setCurrentIndex(max(index, 0))
 

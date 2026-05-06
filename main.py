@@ -10,6 +10,7 @@ from app.app_service import AppService
 from app.fonts import configure_application_fonts
 from app.i18n import load_language
 from app.logging_config import configure_logging
+from app_config import APP_CONFIG
 from browser_backends.selenium_backend import SeleniumBrowserBackend
 from gui.main_window import MainWindow
 
@@ -37,7 +38,7 @@ def main() -> int:
 
         app = QApplication(sys.argv)
         configure_application_fonts(app)
-        language = app_service.get_setting("language", "en")
+        language = app_service.get_setting(APP_CONFIG.settings_keys.language, "en")
         if not load_language(language):
             logger.warning("Failed to load language '%s'; using English", language)
         window = MainWindow(app_service)

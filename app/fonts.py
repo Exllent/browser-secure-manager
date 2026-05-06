@@ -5,49 +5,14 @@ import logging
 from PySide6.QtGui import QFont, QFontDatabase
 from PySide6.QtWidgets import QApplication
 
+from app_config import APP_CONFIG
+
 logger = logging.getLogger(__name__)
 
-BASE_FONT_CANDIDATES = (
-    "Noto Sans",
-    "Segoe UI",
-    "San Francisco",
-    "Helvetica Neue",
-    "Arial",
-    "DejaVu Sans",
-    "Ubuntu Sans",
-)
-
-FALLBACK_FONT_CANDIDATES = (
-    "Noto Sans Arabic",
-    "Noto Sans Hebrew",
-    "Noto Sans Devanagari",
-    "Noto Sans Bengali",
-    "Noto Sans Thai",
-    "Noto Sans CJK SC",
-    "Noto Sans CJK TC",
-    "Noto Sans CJK JP",
-    "Noto Sans CJK KR",
-    "Noto Color Emoji",
-    "DejaVu Sans",
-    "Segoe UI",
-    "Arial",
-)
-
-SUBSTITUTED_FONT_FAMILIES = (
-    "Ubuntu Sans",
-    "Arial",
-    "Helvetica",
-    "Helvetica Neue",
-    "Segoe UI",
-    "Sans Serif",
-    "sans-serif",
-)
-
-EMOJI_FONT_CANDIDATES = (
-    "Noto Color Emoji",
-    "Segoe UI Emoji",
-    "Apple Color Emoji",
-)
+BASE_FONT_CANDIDATES = APP_CONFIG.fonts.base_candidates
+FALLBACK_FONT_CANDIDATES = APP_CONFIG.fonts.fallback_candidates
+SUBSTITUTED_FONT_FAMILIES = APP_CONFIG.fonts.substituted_families
+EMOJI_FONT_CANDIDATES = APP_CONFIG.fonts.emoji_candidates
 
 
 def configure_application_fonts(app: QApplication) -> None:

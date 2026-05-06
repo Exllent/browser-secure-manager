@@ -5,12 +5,14 @@ import shutil
 import sys
 from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parents[1]
-LOG_DIR = BASE_DIR / "logs"
-SESSION_LOG_DIR = LOG_DIR / "sessions"
-APP_LOG_PATH = LOG_DIR / "secure_browser.log"
-ERROR_LOG_PATH = LOG_DIR / "secure_browser_errors.log"
-LOG_FORMAT = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+from app_config import APP_CONFIG
+
+BASE_DIR = APP_CONFIG.paths.base_dir
+LOG_DIR = APP_CONFIG.paths.logs_dir
+SESSION_LOG_DIR = APP_CONFIG.paths.session_logs_dir
+APP_LOG_PATH = LOG_DIR / APP_CONFIG.logging.app_log_filename
+ERROR_LOG_PATH = LOG_DIR / APP_CONFIG.logging.error_log_filename
+LOG_FORMAT = APP_CONFIG.logging.format
 
 
 def configure_logging(*, extra_handlers: list[logging.Handler] | None = None) -> None:
@@ -61,8 +63,8 @@ def export_log_file(kind: str, destination: str | Path) -> Path:
 
 
 def log_file_path(kind: str) -> Path:
-    if kind == "all":
+    if kind == APP_CONFIG.logging.all_kind:
         return APP_LOG_PATH
-    if kind == "errors":
+    if kind == APP_CONFIG.logging.errors_kind:
         return ERROR_LOG_PATH
     raise ValueError(f"Unknown log file kind: {kind}")

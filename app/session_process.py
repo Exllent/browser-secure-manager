@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from app.logging_config import SESSION_LOG_DIR, configure_logging
+from app_config import APP_CONFIG
 from browser_backends.selenium_backend import SeleniumBrowserBackend
 from models.browser_config import BrowserConfig
 from models.fingerprint_config import FingerprintConfig
@@ -24,7 +25,7 @@ class SessionProcessEvent:
     session_id: int
     type: str
     message: str = ""
-    level: str = "INFO"
+    level: str = APP_CONFIG.session_process.default_event_level
     log_path: str = ""
     traceback: str = ""
     exitcode: int | None = None
@@ -34,13 +35,15 @@ class SessionProcessEvent:
 class _SessionProcessRecord:
     process: multiprocessing.Process
     command_queue: Any
-    state: str = "starting"
+    state: str = APP_CONFIG.session_process.starting_state
     log_path: str = ""
 
 
 class SessionProcessManager:
     def __init__(self) -> None:
-        self._context = multiprocessing.get_context("spawn")
+        self._context = multiprocessing.get_context(
+            APP_CONFIG.session_process.multiprocessing_context
+        )
         self._event_queue = self._context.Queue()
         self._records: dict[int, _SessionProcessRecord] = {}
 
@@ -82,7 +85,12 @@ class SessionProcessManager:
         )
         return log_path
 
-    def kill_session(self, session_id: int, *, timeout: float = 2.0) -> bool:
+    def kill_session(
+        self,
+        session_id: int,
+        *,
+        timeout: float = APP_CONFIG.session_process.default_stop_timeout_seconds,
+    ) -> bool:
         record = self._records.pop(session_id, None)
         if record is None:
             logger.info("Session %s has no active process to stop", session_id)
@@ -91,7 +99,9 @@ class SessionProcessManager:
         if record.process.is_alive():
             logger.info("Stopping session process %s for session %s", record.process.pid, session_id)
             try:
-                record.command_queue.put_nowait({"type": "stop"})
+                record.command_queue.put_nowait(
+                    {"type": APP_CONFIG.session_process.stop_command}
+                )
             except Exception:
                 logger.exception("Failed to send stop command to session process %s", session_id)
 
@@ -152,9 +162,12 @@ class SessionProcessManager:
         if record is None:
             return
 
-        if event.type == "started":
-            record.state = "running"
-        elif event.type in {"failed", "stopped"}:
+        if event.type == APP_CONFIG.session_process.started_event:
+            record.state = APP_CONFIG.session_process.running_state
+        elif event.type in {
+            APP_CONFIG.session_process.failed_state,
+            APP_CONFIG.session_process.stopped_state,
+        }:
             record.state = event.type
             record.process.join(0.1)
             if not record.process.is_alive():
@@ -170,14 +183,17 @@ class SessionProcessManager:
             exitcode = record.process.exitcode
             self._records.pop(session_id, None)
             record.process.close()
-            if record.state in {"failed", "stopped"}:
+            if record.state in {
+                APP_CONFIG.session_process.failed_state,
+                APP_CONFIG.session_process.stopped_state,
+            }:
                 continue
-            if record.state == "running" or exitcode == 0:
+            if record.state == APP_CONFIG.session_process.running_state or exitcode == 0:
                 logger.info("Session process for session %s exited with code %s", session_id, exitcode)
                 events.append(
                     SessionProcessEvent(
                         session_id=session_id,
-                        type="stopped",
+                        type=APP_CONFIG.session_process.stopped_state,
                         message="Session process exited.",
                         log_path=record.log_path,
                         exitcode=exitcode,
@@ -192,7 +208,7 @@ class SessionProcessManager:
                 events.append(
                     SessionProcessEvent(
                         session_id=session_id,
-                        type="failed",
+                        type=APP_CONFIG.session_process.failed_state,
                         message=f"Session process exited before startup. Exit code: {exitcode}",
                         level="ERROR",
                         log_path=record.log_path,
@@ -215,7 +231,7 @@ class _QueueLogHandler(logging.Handler):
             self.event_queue.put(
                 {
                     "session_id": self.session_id,
-                    "type": "log",
+                    "type": APP_CONFIG.session_process.log_event,
                     "level": record.levelname,
                     "message": self.format(record),
                     "log_path": self.log_path,
@@ -254,7 +270,7 @@ def _run_browser_session_process(
         event_queue.put(
             {
                 "session_id": session.id,
-                "type": "started",
+                "type": APP_CONFIG.session_process.started_event,
                 "message": "Browser session started.",
                 "log_path": log_path,
             }
@@ -264,7 +280,7 @@ def _run_browser_session_process(
         event_queue.put(
             {
                 "session_id": session.id,
-                "type": "stopped",
+                "type": APP_CONFIG.session_process.stopped_state,
                 "message": "Browser session stopped.",
                 "log_path": log_path,
             }
@@ -275,7 +291,7 @@ def _run_browser_session_process(
         event_queue.put(
             {
                 "session_id": session.id,
-                "type": "failed",
+                "type": APP_CONFIG.session_process.failed_state,
                 "level": "ERROR",
                 "message": str(exc),
                 "traceback": error_traceback,
@@ -295,11 +311,16 @@ def _process_session_loop(
 ) -> None:
     while True:
         try:
-            command = command_queue.get(timeout=1.0)
+            command = command_queue.get(
+                timeout=APP_CONFIG.session_process.command_poll_timeout_seconds
+            )
         except queue.Empty:
             command = None
 
-        if isinstance(command, dict) and command.get("type") == "stop":
+        if (
+            isinstance(command, dict)
+            and command.get("type") == APP_CONFIG.session_process.stop_command
+        ):
             child_logger.info("Stop command received")
             backend.close_session(session_id)
             return
@@ -308,7 +329,7 @@ def _process_session_loop(
             child_logger.info("Browser session is no longer running")
             return
 
-        time.sleep(0.2)
+        time.sleep(APP_CONFIG.session_process.loop_sleep_seconds)
 
 
 def _configure_child_logging(session_id: int, event_queue: Any, log_path: str) -> None:
@@ -320,13 +341,17 @@ def _configure_child_logging(session_id: int, event_queue: Any, log_path: str) -
 
 def _event_from_payload(payload: object) -> SessionProcessEvent:
     if not isinstance(payload, dict):
-        return SessionProcessEvent(session_id=-1, type="log", message=str(payload))
+        return SessionProcessEvent(
+            session_id=-1,
+            type=APP_CONFIG.session_process.log_event,
+            message=str(payload),
+        )
 
     return SessionProcessEvent(
         session_id=int(payload.get("session_id", -1)),
-        type=str(payload.get("type", "log")),
+        type=str(payload.get("type", APP_CONFIG.session_process.log_event)),
         message=str(payload.get("message", "")),
-        level=str(payload.get("level", "INFO")),
+        level=str(payload.get("level", APP_CONFIG.session_process.default_event_level)),
         log_path=str(payload.get("log_path", "")),
         traceback=str(payload.get("traceback", "")),
         exitcode=payload.get("exitcode"),

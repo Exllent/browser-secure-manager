@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 
+from app_config import APP_CONFIG, BrowserCandidateConfig
 from models.browser_config import BrowserConfig
 
 logger = logging.getLogger(__name__)
@@ -16,16 +17,8 @@ logger = logging.getLogger(__name__)
 def discover_installed_browsers() -> list[BrowserConfig]:
     discovered: list[BrowserConfig] = []
     seen_paths: set[str] = set()
-    known_browsers = (
-        ("chrome", "Chrome / Chromium", "chromium", _chromium_candidates()),
-        ("brave", "Brave", "chromium", _brave_candidates()),
-        ("edge", "Microsoft Edge", "chromium", _edge_candidates()),
-        ("vivaldi", "Vivaldi", "chromium", _vivaldi_candidates()),
-        ("opera", "Opera", "chromium", _opera_candidates()),
-    )
-
-    for key, display_name, browser_type, candidates in known_browsers:
-        for candidate in candidates:
+    for browser in APP_CONFIG.browser_discovery.candidates:
+        for candidate in _candidate_paths(browser):
             path = Path(candidate).expanduser()
             path_key = str(path)
             if path_key in seen_paths or not path.is_file() or not _looks_like_native_binary(path):
@@ -33,7 +26,7 @@ def discover_installed_browsers() -> list[BrowserConfig]:
             try:
                 _validate_browser_binary(
                     path=path,
-                    browser_name=display_name,
+                    browser_name=browser.display_name,
                     version_keywords=_chromium_version_keywords(),
                 )
             except RuntimeError as exc:
@@ -44,14 +37,14 @@ def discover_installed_browsers() -> list[BrowserConfig]:
             discovered.append(
                 BrowserConfig(
                     id=None,
-                    key=key,
-                    display_name=display_name,
-                    browser_type=browser_type,
+                    key=browser.key,
+                    display_name=browser.display_name,
+                    browser_type=browser.browser_type,
                     executable_path=str(path),
                     enabled=True,
                 )
             )
-            logger.info("Discovered %s browser at %s", display_name, path)
+            logger.info("Discovered %s browser at %s", browser.display_name, path)
             break
 
     return discovered
@@ -150,119 +143,45 @@ def _find_browser_binary(
 
 
 def _chromium_candidates() -> tuple[str, ...]:
-    if sys.platform == "darwin":
-        return (
-            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-            "/Applications/Chromium.app/Contents/MacOS/Chromium",
-            str(Path.home() / "Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
-        )
-    if sys.platform == "win32":
-        return (
-            *_windows_browser_candidates(
-                "Google/Chrome/Application",
-                "chrome.exe",
-                extra_env_vars=("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA"),
-            ),
-            *_windows_browser_candidates(
-                "Chromium/Application",
-                "chrome.exe",
-                extra_env_vars=("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA"),
-            ),
-        )
-    return (
-        "/usr/bin/google-chrome",
-        "/usr/bin/google-chrome-stable",
-        "/usr/bin/chromium",
-        "/usr/bin/chromium-browser",
-        "/snap/chromium/current/usr/lib/chromium-browser/chrome",
-        "/snap/bin/chromium",
-        "/opt/google/chrome/chrome",
-    )
+    return _candidate_paths(APP_CONFIG.browser_discovery.candidates[0])
 
 
 def _brave_candidates() -> tuple[str, ...]:
-    if sys.platform == "darwin":
-        return (
-            "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
-            str(Path.home() / "Applications/Brave Browser.app/Contents/MacOS/Brave Browser"),
-        )
-    if sys.platform == "win32":
-        return _windows_browser_candidates(
-            "BraveSoftware/Brave-Browser/Application",
-            "brave.exe",
-            extra_env_vars=("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA"),
-        )
-    return (
-        "/usr/bin/brave-browser",
-        "/usr/bin/brave",
-        "/snap/bin/brave",
-        "/opt/brave.com/brave/brave-browser",
-    )
+    return _candidate_paths(APP_CONFIG.browser_discovery.candidates[1])
 
 
 def _edge_candidates() -> tuple[str, ...]:
-    if sys.platform == "darwin":
-        return (
-            "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
-            str(Path.home() / "Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"),
-        )
-    if sys.platform == "win32":
-        return _windows_browser_candidates(
-            "Microsoft/Edge/Application",
-            "msedge.exe",
-            extra_env_vars=("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA"),
-        )
-    return (
-        "/usr/bin/microsoft-edge",
-        "/usr/bin/microsoft-edge-stable",
-        "/opt/microsoft/msedge/msedge",
-    )
+    return _candidate_paths(APP_CONFIG.browser_discovery.candidates[2])
 
 
 def _vivaldi_candidates() -> tuple[str, ...]:
-    if sys.platform == "darwin":
-        return (
-            "/Applications/Vivaldi.app/Contents/MacOS/Vivaldi",
-            str(Path.home() / "Applications/Vivaldi.app/Contents/MacOS/Vivaldi"),
-        )
-    if sys.platform == "win32":
-        return _windows_browser_candidates(
-            "Vivaldi/Application",
-            "vivaldi.exe",
-            extra_env_vars=("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA"),
-        )
-    return (
-        "/usr/bin/vivaldi",
-        "/usr/bin/vivaldi-stable",
-        "/opt/vivaldi/vivaldi",
-    )
+    return _candidate_paths(APP_CONFIG.browser_discovery.candidates[3])
 
 
 def _opera_candidates() -> tuple[str, ...]:
+    return _candidate_paths(APP_CONFIG.browser_discovery.candidates[4])
+
+
+def _candidate_paths(browser: BrowserCandidateConfig) -> tuple[str, ...]:
     if sys.platform == "darwin":
-        return (
-            "/Applications/Opera.app/Contents/MacOS/Opera",
-            str(Path.home() / "Applications/Opera.app/Contents/MacOS/Opera"),
+        return tuple(
+            str(Path.home() / path[2:])
+            if path.startswith("~/")
+            else path
+            for path in browser.mac_paths
         )
     if sys.platform == "win32":
-        return (
-            *_windows_browser_candidates(
-                "Opera",
-                "launcher.exe",
-                extra_env_vars=("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA"),
-            ),
-            *_windows_browser_candidates(
-                "Programs/Opera",
-                "launcher.exe",
-                extra_env_vars=("LOCALAPPDATA",),
-            ),
-        )
-    return (
-        "/usr/bin/opera",
-        "/snap/opera/current/usr/lib/x86_64-linux-gnu/opera/opera",
-        "/snap/bin/opera",
-        "/opt/opera/opera",
-    )
+        paths: list[str] = []
+        for app_subdir, executable_name, env_vars in browser.windows_subdirs:
+            paths.extend(
+                _windows_browser_candidates(
+                    app_subdir,
+                    executable_name,
+                    extra_env_vars=env_vars,
+                )
+            )
+        return tuple(paths)
+    return browser.linux_paths
 
 
 def _windows_browser_candidates(
@@ -319,15 +238,7 @@ def _validate_browser_binary(
 
 
 def _chromium_version_keywords() -> tuple[str, ...]:
-    return (
-        "Google Chrome",
-        "Chromium",
-        "Chrome",
-        "Brave",
-        "Microsoft Edge",
-        "Vivaldi",
-        "Opera",
-    )
+    return APP_CONFIG.browser_discovery.version_keywords
 
 
 def _run_version_command(path: Path) -> subprocess.CompletedProcess[str]:
@@ -335,7 +246,7 @@ def _run_version_command(path: Path) -> subprocess.CompletedProcess[str]:
         "capture_output": True,
         "check": False,
         "text": True,
-        "timeout": 5,
+        "timeout": APP_CONFIG.browser_discovery.validate_timeout_seconds,
     }
     if platform.system() == "Windows":
         startupinfo = subprocess.STARTUPINFO()

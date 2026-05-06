@@ -75,6 +75,17 @@ class FingerprintStorageTest(unittest.TestCase):
         self.assertIsNone(storage.get_all_sessions()[-1].fingerprint_id)
         self.assertIsNone(storage.get_fingerprint_profile(profile.id))
 
+    def test_upsert_assigns_missing_canvas_seed(self) -> None:
+        profile = storage.upsert_fingerprint_profile(
+            FingerprintProfile(id=None, name="No seed", config=FingerprintConfig())
+        )
+
+        saved = storage.get_fingerprint_profile(profile.id)
+
+        self.assertIsNotNone(saved)
+        self.assertIsNotNone(saved.config.canvas_noise_seed)  # type: ignore[union-attr]
+        self.assertEqual(saved.config.validate(), [])  # type: ignore[union-attr]
+
     def test_init_db_removes_unsupported_browser_configs(self) -> None:
         with storage._connect() as connection:  # noqa: SLF001
             connection.execute(

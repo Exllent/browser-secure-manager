@@ -38,6 +38,7 @@ class FingerprintConfigTest(unittest.TestCase):
             hide_automation="yes",  # type: ignore[arg-type]
             spoof_feature_detection="yes",  # type: ignore[arg-type]
             canvas_noise_level="high",  # type: ignore[arg-type]
+            canvas_noise_seed="seed",  # type: ignore[arg-type]
             font_spoof_count=1.5,  # type: ignore[arg-type]
             hardware_concurrency="eight",  # type: ignore[arg-type]
             device_memory="lots",  # type: ignore[arg-type]
@@ -51,6 +52,7 @@ class FingerprintConfigTest(unittest.TestCase):
         self.assertIn("hide_automation must be a boolean", errors)
         self.assertIn("spoof_feature_detection must be a boolean", errors)
         self.assertIn("canvas_noise_level must be a number", errors)
+        self.assertIn("canvas_noise_seed must be an integer", errors)
         self.assertIn("font_spoof_count must be an integer", errors)
         self.assertIn("hardware_concurrency must be an integer", errors)
         self.assertIn("device_memory must be a number", errors)
@@ -78,6 +80,20 @@ class FingerprintConfigTest(unittest.TestCase):
 
         self.assertIn("geolocation latitude must be between -90 and 90", errors)
         self.assertIn("geolocation longitude must be between -180 and 180", errors)
+
+    def test_invalid_canvas_seed_is_reported(self) -> None:
+        errors = FingerprintConfig(canvas_noise_seed=0).validate()
+
+        self.assertIn("canvas_noise_seed must be between 1 and 4294967295", errors)
+
+    def test_ensure_canvas_seed_assigns_missing_seed(self) -> None:
+        config = FingerprintConfig()
+
+        result = config.ensure_canvas_noise_seed()
+
+        self.assertIs(result, config)
+        self.assertIsNotNone(config.canvas_noise_seed)
+        self.assertEqual(config.validate(), [])
 
     def test_invalid_string_lists_are_reported(self) -> None:
         config = FingerprintConfig(
@@ -108,6 +124,7 @@ class FingerprintConfigTest(unittest.TestCase):
         self.assertEqual(data["locale"], ["ru-RU"])
         self.assertEqual(data["geolocation"], (55.75, 37.62))
         self.assertEqual(data["canvas_mode"], "noise")
+        self.assertIsNone(data["canvas_noise_seed"])
         self.assertTrue(data["spoof_feature_detection"])
 
     def test_user_agent_consistency_is_validated(self) -> None:

@@ -7,6 +7,7 @@ import ssl
 import time
 from dataclasses import dataclass
 
+from app_config import APP_CONFIG
 from models.proxy_config import ProxyConfig
 
 logger = logging.getLogger(__name__)
@@ -19,20 +20,41 @@ class ProxyTestResult:
     message: str
 
 
-def test_proxy(proxy: ProxyConfig, *, timeout: float = 5.0) -> ProxyTestResult:
+def test_proxy(
+    proxy: ProxyConfig,
+    *,
+    timeout: float = APP_CONFIG.proxies.test_timeout_seconds,
+) -> ProxyTestResult:
     started = time.perf_counter()
     logger.info("Testing proxy %s", proxy.display_name())
     try:
         proxy_type = proxy.normalized_type()
+        target_host = APP_CONFIG.proxies.test_target_host
+        target_port = APP_CONFIG.proxies.test_target_port
         if proxy_type == "socks5":
-            sock = _open_socks5_tunnel(proxy, target_host="browserleaks.com", target_port=443, timeout=timeout)
+            sock = _open_socks5_tunnel(
+                proxy,
+                target_host=target_host,
+                target_port=target_port,
+                timeout=timeout,
+            )
         elif proxy_type == "socks4":
-            sock = _open_socks4_tunnel(proxy, target_host="browserleaks.com", target_port=443, timeout=timeout)
+            sock = _open_socks4_tunnel(
+                proxy,
+                target_host=target_host,
+                target_port=target_port,
+                timeout=timeout,
+            )
         else:
-            sock = _open_http_tunnel(proxy, target_host="browserleaks.com", target_port=443, timeout=timeout)
+            sock = _open_http_tunnel(
+                proxy,
+                target_host=target_host,
+                target_port=target_port,
+                timeout=timeout,
+            )
 
         with sock:
-            _verify_tls(sock, server_hostname="browserleaks.com", timeout=timeout)
+            _verify_tls(sock, server_hostname=target_host, timeout=timeout)
     except OSError as exc:
         logger.warning("Proxy test failed for %s: %s", proxy.display_name(), exc)
         return ProxyTestResult(False, None, str(exc))
@@ -168,7 +190,7 @@ def _verify_tls(sock: socket.socket, *, server_hostname: str, timeout: float) ->
         tls_sock.settimeout(timeout)
         tls_sock.sendall(
             (
-                f"HEAD /webrtc HTTP/1.1\r\n"
+                f"HEAD {APP_CONFIG.proxies.tls_probe_path} HTTP/1.1\r\n"
                 f"Host: {server_hostname}\r\n"
                 "Connection: close\r\n"
                 "\r\n"

@@ -15,7 +15,7 @@ def _build_features_detection_patch(config: FingerprintConfig) -> str:
     if config.spoof_connection:
         patches.append(_build_connection_patch())
     if config.spoof_permissions:
-        patches.append(_build_permissions_patch())
+        patches.append(_build_permissions_patch(config))
     if config.spoof_battery:
         patches.append(_build_battery_patch())
 
@@ -65,15 +65,22 @@ def _build_battery_patch() -> str:
     """
 
 
-def _build_permissions_patch() -> str:
+def _build_permissions_patch(config: FingerprintConfig) -> str:
+    geolocation_state = "granted" if config.geolocation is not None else ""
     return """
     if (navigator.permissions && navigator.permissions.query) {
+        const secureBrowserPermissionStates = new Map(Object.entries({
+            geolocation: "%s"
+        }).filter((entry) => entry[1]));
         const originalPermissionsQuery = navigator.permissions.query.bind(navigator.permissions);
         navigator.permissions.query = (parameters) => {
+            if (parameters && secureBrowserPermissionStates.has(parameters.name)) {
+                return Promise.resolve({state: secureBrowserPermissionStates.get(parameters.name)});
+            }
             if (parameters && parameters.name === 'notifications') {
                 return Promise.resolve({state: Notification.permission});
             }
             return originalPermissionsQuery(parameters);
         };
     }
-    """
+    """ % geolocation_state

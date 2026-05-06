@@ -7,6 +7,7 @@ from selenium import webdriver
 from selenium.common.exceptions import WebDriverException
 from selenium.webdriver.chrome.options import Options as ChromeOptions
 
+from app_config import APP_CONFIG
 from models.browser_config import BrowserConfig
 from models.fingerprint_config import FingerprintConfig
 from models.proxy_config import ProxyConfig
@@ -87,6 +88,8 @@ class SeleniumBrowserBackend:
         logger.info("Navigating session %s to %s", session.id, session.url)
         driver.get(session.url)
         if fingerprint_config is not None:
+            _log_fingerprint_runtime_state(driver, session.id)
+        if fingerprint_config is not None:
             for script in fingerprint_config.custom_js_after_load:
                 logger.info("Executing post-load fingerprint script for session %s", session.id)
                 driver.execute_script(script)
@@ -132,18 +135,9 @@ class SeleniumBrowserBackend:
         options = ChromeOptions()
         browser_binary = _browser_binary_from_config(
             browser_config,
-            default_browser_name="Chrome / Chromium",
-            default_env_var="CHROME_BINARY",
-            command_names=(
-                "google-chrome",
-                "chrome",
-                "chromium",
-                "chromium-browser",
-                "brave-browser",
-                "microsoft-edge",
-                "vivaldi",
-                "opera",
-            ),
+            default_browser_name=APP_CONFIG.browser_discovery.default_browser_name,
+            default_env_var=APP_CONFIG.browser_discovery.default_env_var,
+            command_names=APP_CONFIG.browser_discovery.chromium_command_names,
             candidates=_chromium_candidates(),
             version_keywords=_chromium_version_keywords(),
             required=False,
@@ -169,7 +163,7 @@ class SeleniumBrowserBackend:
         logger.info("Starting webdriver for session %s", session.id)
         driver = webdriver.Chrome(options=options)
         if fingerprint_config is not None:
-            _apply_chromium_fingerprint(driver, fingerprint_config)
+            _apply_chromium_fingerprint(driver, fingerprint_config, session.url)
         return driver
 
 
@@ -182,3 +176,27 @@ def _effective_user_agent(
     if fingerprint_config is not None and fingerprint_config.user_agent:
         return fingerprint_config.user_agent.strip()
     return ""
+
+
+def _log_fingerprint_runtime_state(driver: webdriver.Chrome, session_id: int | None) -> None:
+    try:
+        state = driver.execute_script(
+            """
+            return {
+                marker: globalThis.__secureBrowserFingerprintPreloadApplied === true,
+                platform: navigator.platform,
+                webdriver: navigator.webdriver,
+                userAgent: navigator.userAgent
+            };
+            """
+        )
+    except Exception:
+        logger.exception("Could not verify fingerprint runtime state for session %s", session_id)
+        return
+
+    logger.info("Fingerprint runtime state for session %s: %s", session_id, state)
+    if not isinstance(state, dict) or not state.get("marker"):
+        logger.error(
+            "Fingerprint preload marker is missing for session %s; browser pages are not spoofed",
+            session_id,
+        )

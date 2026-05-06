@@ -3,45 +3,30 @@ from __future__ import annotations
 import zoneinfo
 from dataclasses import asdict, dataclass, field
 from numbers import Real
+from random import SystemRandom
 from typing import Any, Literal, get_args
+
+from app_config import APP_CONFIG
 
 CanvasMode = Literal["noise", "fixed", "passthrough"]
 WebRTCMode = Literal["disable", "public_ip_only", "proxy_dns", "passthrough"]
 TLSProfile = Literal["chrome_134", "chromium_134", "random"]
 
-VALID_CANVAS_MODES = set(get_args(CanvasMode))
-VALID_WEBRTC_MODES = set(get_args(WebRTCMode))
-VALID_TLS_PROFILES = set(get_args(TLSProfile))
-VALID_PLATFORMS = {"Win32", "Win64", "MacIntel", "Linux x86_64", "Linux armv8l"}
-VALID_DEVICE_MEMORY_VALUES = {0.25, 0.5, 1, 2, 4, 8}
-TIMEZONE_LANGUAGE_PREFIXES = {
-    "Europe/Moscow": ("ru",),
-    "America/New_York": ("en",),
-    "America/Los_Angeles": ("en",),
-    "Europe/Berlin": ("de",),
-    "Europe/Paris": ("fr",),
-    "Asia/Tokyo": ("ja",),
-}
-BOOLEAN_FIELDS = (
-    "hide_automation",
-    "hide_headless",
-    "spoof_plugins",
-    "audio_noise",
-    "spoof_touch_support",
-    "spoof_connection",
-    "spoof_permissions",
-    "spoof_feature_detection",
-    "hide_adblock_signs",
-    "spoof_battery",
-)
-LIST_FIELDS = (
-    "spoof_languages",
-    "font_list",
-    "locale",
-    "custom_js_before_load",
-    "custom_js_after_load",
-)
-OPTIONAL_STRING_FIELDS = ("user_agent", "webgl_vendor", "webgl_renderer", "timezone", "platform")
+_VALIDATION_CONFIG = APP_CONFIG.fingerprint_validation
+VALID_CANVAS_MODES = set(_VALIDATION_CONFIG.canvas_modes)
+VALID_WEBRTC_MODES = set(_VALIDATION_CONFIG.webrtc_modes)
+VALID_TLS_PROFILES = set(_VALIDATION_CONFIG.tls_profiles)
+VALID_PLATFORMS = set(_VALIDATION_CONFIG.platforms)
+VALID_DEVICE_MEMORY_VALUES = set(_VALIDATION_CONFIG.device_memory_values)
+TIMEZONE_LANGUAGE_PREFIXES = dict(_VALIDATION_CONFIG.timezone_language_prefixes)
+BOOLEAN_FIELDS = _VALIDATION_CONFIG.boolean_fields
+LIST_FIELDS = _VALIDATION_CONFIG.list_fields
+OPTIONAL_STRING_FIELDS = _VALIDATION_CONFIG.optional_string_fields
+_RANDOM = SystemRandom()
+
+assert VALID_CANVAS_MODES == set(get_args(CanvasMode))
+assert VALID_WEBRTC_MODES == set(get_args(WebRTCMode))
+assert VALID_TLS_PROFILES == set(get_args(TLSProfile))
 
 
 @dataclass(slots=True)
@@ -57,6 +42,7 @@ class FingerprintConfig:
     # === Canvas / WebGL ===
     canvas_mode: CanvasMode = "noise"
     canvas_noise_level: float = 0.02  # 0.0 - 0.1, микро-шум для уникальности
+    canvas_noise_seed: int | None = None  # стабильный seed для разных canvas hashes
     webgl_vendor: str | None = None  # например, "Google Inc. (NVIDIA)"
     webgl_renderer: str | None = None  # например, "ANGLE (NVIDIA, ...)"
 
@@ -116,6 +102,14 @@ class FingerprintConfig:
         """Возвращает конфигурацию в виде словаря для сохранения в JSON/YAML."""
         return asdict(self)
 
+    def ensure_canvas_noise_seed(self) -> FingerprintConfig:
+        if self.canvas_mode in {"noise", "fixed"} and self.canvas_noise_seed is None:
+            self.canvas_noise_seed = _RANDOM.randint(
+                _VALIDATION_CONFIG.canvas_seed_min,
+                _VALIDATION_CONFIG.canvas_seed_max,
+            )
+        return self
+
     def validate(self) -> list[str]:
         """Возвращает список ошибок конфигурации."""
         errors: list[str] = []
@@ -128,12 +122,33 @@ class FingerprintConfig:
 
         if not self._is_number(self.canvas_noise_level):
             errors.append("canvas_noise_level must be a number")
-        elif not (0.0 <= self.canvas_noise_level <= 0.1):
+        elif not (
+            _VALIDATION_CONFIG.canvas_noise_min
+            <= self.canvas_noise_level
+            <= _VALIDATION_CONFIG.canvas_noise_max
+        ):
             errors.append("canvas_noise_level must be between 0.0 and 0.1")
+
+        if self.canvas_noise_seed is not None:
+            if not isinstance(self.canvas_noise_seed, int) or isinstance(
+                self.canvas_noise_seed,
+                bool,
+            ):
+                errors.append("canvas_noise_seed must be an integer")
+            elif not (
+                _VALIDATION_CONFIG.canvas_seed_min
+                <= self.canvas_noise_seed
+                <= _VALIDATION_CONFIG.canvas_seed_max
+            ):
+                errors.append("canvas_noise_seed must be between 1 and 4294967295")
 
         if not isinstance(self.font_spoof_count, int) or isinstance(self.font_spoof_count, bool):
             errors.append("font_spoof_count must be an integer")
-        elif self.font_spoof_count < 0 or self.font_spoof_count > 5:
+        elif not (
+            _VALIDATION_CONFIG.font_spoof_min
+            <= self.font_spoof_count
+            <= _VALIDATION_CONFIG.font_spoof_max
+        ):
             errors.append("font_spoof_count must be between 0 and 5")
 
         if isinstance(self.timezone, str) and self.timezone:
@@ -151,7 +166,11 @@ class FingerprintConfig:
         if self.hardware_concurrency is not None:
             if not isinstance(self.hardware_concurrency, int) or isinstance(self.hardware_concurrency, bool):
                 errors.append("hardware_concurrency must be an integer")
-            elif not (1 <= self.hardware_concurrency <= 128):
+            elif not (
+                _VALIDATION_CONFIG.hardware_concurrency_min
+                <= self.hardware_concurrency
+                <= _VALIDATION_CONFIG.hardware_concurrency_max
+            ):
                 errors.append("hardware_concurrency must be between 1 and 128")
 
         if self.device_memory is not None:
@@ -224,19 +243,20 @@ class FingerprintConfig:
         user_agent = self.user_agent
         renderer = self.webgl_renderer or ""
         languages = self.spoof_languages or self.locale
+        validation = APP_CONFIG.fingerprint_validation
 
         if "Macintosh" in user_agent:
-            if self.platform != "MacIntel":
+            if self.platform != validation.mac_platform:
                 errors.append("Macintosh User-Agent requires platform MacIntel")
             if renderer and "Apple" not in renderer:
                 errors.append("Macintosh User-Agent requires Apple WebGL renderer")
         elif "Windows NT" in user_agent:
-            if self.platform not in {"Win32", "Win64"}:
+            if self.platform not in validation.windows_platforms:
                 errors.append("Windows User-Agent requires Win32 or Win64 platform")
             if "Apple M" in renderer or "ANGLE Metal Renderer: Apple" in renderer:
                 errors.append("Windows User-Agent must not use Apple WebGL renderer")
         elif "Linux" in user_agent or "X11" in user_agent:
-            if self.platform not in {"Linux x86_64", "Linux armv8l"}:
+            if self.platform not in validation.linux_platforms:
                 errors.append("Linux User-Agent requires Linux platform")
             if "Direct3D" in renderer or "Apple" in renderer:
                 errors.append("Linux User-Agent must not use Direct3D or Apple WebGL renderer")

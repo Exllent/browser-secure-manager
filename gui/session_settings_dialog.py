@@ -20,6 +20,9 @@ from PySide6.QtWidgets import (
 
 from app.app_service import AppService
 from app.i18n import _
+from app_config import APP_CONFIG
+from models.fingerprint_config import FingerprintConfig
+from models.fingerprint_profile import FingerprintProfile
 from models.session_entry import SessionEntry
 
 
@@ -33,18 +36,18 @@ class SessionSettingsDialog(QDialog):
         super().__init__(parent)
         session_label = str(session.id) if session.id is not None else _("new")
         self.setWindowTitle(f"{_('Session settings')} {session_label}")
-        self.resize(720, 520)
+        self.resize(*APP_CONFIG.gui.session_settings_size)
         self._session = session
         self.app_service = app_service
 
         self.url_edit = QLineEdit(session.url)
-        self.url_edit.setPlaceholderText("https://example.com")
+        self.url_edit.setPlaceholderText(APP_CONFIG.gui.default_session_url_placeholder)
 
         self.browser_combo = QComboBox()
         self._load_browsers(session.browser)
 
         self.profile_path_edit = QLineEdit(session.profile_path)
-        self.profile_path_edit.setPlaceholderText("profiles/session_<id>")
+        self.profile_path_edit.setPlaceholderText(APP_CONFIG.gui.profile_path_placeholder)
         self.choose_profile_path_button = QPushButton(_("Choose"))
         self.choose_profile_path_button.clicked.connect(self.choose_profile_path)
 
@@ -59,14 +62,14 @@ class SessionSettingsDialog(QDialog):
 
         self.notes_edit = QTextEdit(session.notes)
         self.notes_edit.setPlaceholderText(_("Comment"))
-        self.notes_edit.setMinimumHeight(120)
+        self.notes_edit.setMinimumHeight(APP_CONFIG.gui.notes_minimum_height)
 
         self.width_spin = QSpinBox()
-        self.width_spin.setRange(320, 7680)
+        self.width_spin.setRange(*APP_CONFIG.gui.window_width_range)
         self.width_spin.setValue(session.window_width)
 
         self.height_spin = QSpinBox()
-        self.height_spin.setRange(240, 4320)
+        self.height_spin.setRange(*APP_CONFIG.gui.window_height_range)
         self.height_spin.setValue(session.window_height)
 
         buttons = QDialogButtonBox(
@@ -130,11 +133,14 @@ class SessionSettingsDialog(QDialog):
             self.browser_combo.addItem(config.display_name, config.key)
 
         if self.browser_combo.count() == 0:
-            self.browser_combo.addItem("Chrome / Chromium", "chrome")
+            self.browser_combo.addItem(
+                APP_CONFIG.storage.default_browser_display_name,
+                APP_CONFIG.storage.default_browser_key,
+            )
 
         index = self.browser_combo.findData(selected_browser_key)
         if index < 0:
-            index = self.browser_combo.findData("chrome")
+            index = self.browser_combo.findData(APP_CONFIG.storage.default_browser_key)
         self.browser_combo.setCurrentIndex(max(index, 0))
 
     def _load_proxies(self, selected_proxy_id: int | None) -> None:
@@ -154,7 +160,7 @@ class SessionSettingsDialog(QDialog):
         self.fingerprint_combo.clear()
         self.fingerprint_combo.addItem(_("No fingerprint"), None)
         for profile in self.app_service.get_fingerprint_profiles(enabled_only=True):
-            self.fingerprint_combo.addItem(profile.display_name(), profile.id)
+            self.fingerprint_combo.addItem(_fingerprint_combo_label(profile), profile.id)
 
         if selected_fingerprint_id is None:
             self.fingerprint_combo.setCurrentIndex(0)
@@ -231,7 +237,9 @@ class SessionSettingsDialog(QDialog):
             id=self._session.id,
             name=self._session.name,
             url=self.url_edit.text().strip() or "about:blank",
-            browser=str(self.browser_combo.currentData() or "chrome"),
+            browser=str(
+                self.browser_combo.currentData() or APP_CONFIG.storage.default_browser_key
+            ),
             profile_path=self.profile_path_edit.text().strip(),
             proxy_id=self.proxy_combo.currentData(),
             fingerprint_id=self.fingerprint_combo.currentData(),
@@ -242,3 +250,34 @@ class SessionSettingsDialog(QDialog):
             window_height=self.height_spin.value(),
             status=self._session.status,
         )
+
+
+def _fingerprint_combo_label(profile: FingerprintProfile) -> str:
+    config = profile.config
+    details: list[str] = []
+    if profile.id is not None:
+        details.append(f"#{profile.id}")
+
+    os_label = _fingerprint_os_label(config)
+    if os_label:
+        details.append(os_label)
+    if config.platform:
+        details.append(config.platform)
+    if config.canvas_noise_seed is not None:
+        details.append(f"canvas {config.canvas_noise_seed}")
+
+    if not details:
+        return profile.display_name()
+    return f"{profile.display_name()} ({' / '.join(details)})"
+
+
+def _fingerprint_os_label(config: FingerprintConfig) -> str:
+    user_agent = config.user_agent or ""
+    platform = config.platform or ""
+    if "Windows NT" in user_agent or platform in {"Win32", "Win64"}:
+        return "Windows"
+    if "Macintosh" in user_agent or platform == "MacIntel":
+        return "macOS"
+    if "Linux" in user_agent or "X11" in user_agent or platform.startswith("Linux"):
+        return "Linux"
+    return ""

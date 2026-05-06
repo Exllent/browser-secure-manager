@@ -5,24 +5,27 @@ import shutil
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+from app_config import APP_CONFIG
+
 from . import config
 from .sessions import get_all_sessions
 from .settings import get_setting
 
 logger = logging.getLogger(__name__)
 
-PROFILE_CACHE_ENABLED_KEY = "profile_cache_enabled"
-PROFILE_CACHE_DAYS_KEY = "profile_cache_days"
-PROFILE_CACHE_DAY_OPTIONS = ("1", "3", "7", "30", "90", "120", "forever")
+PROFILE_CACHE_ENABLED_KEY = APP_CONFIG.settings_keys.profile_cache_enabled
+PROFILE_CACHE_DAYS_KEY = APP_CONFIG.settings_keys.profile_cache_days
+PROFILE_CACHE_DAY_OPTIONS = APP_CONFIG.profile_cache.day_options
 
 
 def is_profile_cache_enabled() -> bool:
-    return get_setting(PROFILE_CACHE_ENABLED_KEY, "1") != "0"
+    return get_setting(PROFILE_CACHE_ENABLED_KEY, APP_CONFIG.profile_cache.enabled_default) != "0"
 
 
 def get_profile_cache_days() -> str:
-    value = get_setting(PROFILE_CACHE_DAYS_KEY, "1")
-    return value if value in PROFILE_CACHE_DAY_OPTIONS else "1"
+    default = APP_CONFIG.profile_cache.days_default
+    value = get_setting(PROFILE_CACHE_DAYS_KEY, default)
+    return value if value in PROFILE_CACHE_DAY_OPTIONS else default
 
 
 def cleanup_expired_profile_cache() -> int:
@@ -31,7 +34,7 @@ def cleanup_expired_profile_cache() -> int:
         return 0
 
     retention = get_profile_cache_days()
-    if retention == "forever":
+    if retention == APP_CONFIG.profile_cache.forever_value:
         logger.info("Profile cache cleanup skipped because retention is forever")
         return 0
 
@@ -104,4 +107,5 @@ def _is_safe_profile_delete_target(path: Path) -> bool:
 
 
 def _looks_like_browser_profile(path: Path) -> bool:
-    return (path / "Local State").exists() or (path / "Default").is_dir()
+    local_state, default_dir = APP_CONFIG.profile_cache.profile_markers
+    return (path / local_state).exists() or (path / default_dir).is_dir()

@@ -21,6 +21,7 @@ Runtime artifacts such as `profiles/`, `logs/`, `sessions.sqlite3`, `.venv/`, `.
 ## Entry Points
 
 - `main.py` configures logging, initializes `AppService`, initializes storage, loads language settings, creates `QApplication`, and opens `MainWindow`.
+- `app_config.py` owns immutable application constants through one frozen `APP_CONFIG` dataclass tree.
 - `pyproject.toml` defines console scripts:
   - `secure-browser`
   - `secure-browser-gui`
@@ -44,6 +45,7 @@ Keep responsibilities separated:
 - `browser_backends/fingerprint/`: fingerprint-specific Chromium option, CDP, extension, and JavaScript patch builders.
 - `browser_extensions/`: static extension assets, currently WebRTC leak prevention.
 - `services/`: supporting non-GUI business logic, currently proxy testing.
+- `app_config.py`: frozen dataclass configuration tree for source-controlled constants such as paths, storage defaults, backup format, browser discovery candidates, proxy test targets, fingerprint options, GUI sizes, and localization filenames. Runtime code reads from `APP_CONFIG`; do not introduce new mutable module-level settings for these concerns.
 - `translations/`: only `app_ru.ts` and `app_ru.qm` are expected. English is the source/default language.
 - `tests/`: unittest test suite.
 

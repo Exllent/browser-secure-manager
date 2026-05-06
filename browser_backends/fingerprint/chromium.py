@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
+import shutil
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options as ChromeOptions
 
+from app_config import APP_CONFIG
 from models.fingerprint_config import FingerprintConfig
 
 from browser_backends.chromium_extensions import _add_chromium_extension
@@ -17,6 +21,7 @@ from .canvas import _build_canvas_patch
 from .content_filter import _build_content_filter_patch
 from .features_detection import _build_features_detection_patch
 from .fonts import _build_font_patch
+from .geolocation import _build_geolocation_patch
 from .headless import _build_headless_patch
 from .navigator import _build_navigator_patches
 from .user_agent import _build_user_agent_metadata, _build_user_agent_patch
@@ -42,7 +47,7 @@ def _configure_chromium_options(options: ChromeOptions, config: FingerprintConfi
         options.add_argument("--disable-webrtc")
     elif config.webrtc_mode in {"proxy_dns", "public_ip_only"}:
         logger.info("Configuring Chromium WebRTC IP handling policy: %s", config.webrtc_mode)
-        options.add_argument("--force-webrtc-ip-handling-policy=disable_non_proxied_udp")
+        options.add_argument(APP_CONFIG.chromium_extensions.disable_non_proxied_udp_argument)
 
 
 def _configure_chromium_fingerprint_extension(
@@ -55,18 +60,19 @@ def _configure_chromium_fingerprint_extension(
         logger.info("Fingerprint extension was not created because no fingerprint script was generated")
         return
 
-    extension_dir = profile_dir / "secure_browser_fingerprint_extension"
+    extension_dir = _fingerprint_extension_dir(profile_dir, script)
+    _cleanup_old_fingerprint_extensions(profile_dir, keep_dir=extension_dir)
     extension_dir.mkdir(parents=True, exist_ok=True)
-    (extension_dir / "manifest.json").write_text(
+    (extension_dir / APP_CONFIG.chromium_extensions.manifest_filename).write_text(
         json.dumps(
             {
                 "manifest_version": 3,
-                "name": "Secure Browser Fingerprint",
-                "version": "1.0.0",
+                "name": APP_CONFIG.chromium_extensions.fingerprint_extension_name,
+                "version": APP_CONFIG.chromium_extensions.fingerprint_extension_version,
                 "content_scripts": [
                     {
                         "matches": ["<all_urls>"],
-                        "js": ["fingerprint.js"],
+                        "js": [APP_CONFIG.chromium_extensions.fingerprint_script_filename],
                         "run_at": "document_start",
                         "all_frames": True,
                         "match_about_blank": True,
@@ -78,14 +84,22 @@ def _configure_chromium_fingerprint_extension(
         ),
         encoding="utf-8",
     )
-    (extension_dir / "fingerprint.js").write_text(script, encoding="utf-8")
+    (extension_dir / APP_CONFIG.chromium_extensions.fingerprint_script_filename).write_text(
+        script,
+        encoding="utf-8",
+    )
     _add_chromium_extension(options, extension_dir)
-    logger.info("Fingerprint extension prepared at %s", extension_dir)
+    logger.info(
+        "Fingerprint extension prepared at %s with canvas seed %s",
+        extension_dir,
+        getattr(config, "canvas_noise_seed", None),
+    )
 
 
 def _apply_chromium_fingerprint(
     driver: webdriver.Chrome,
     config: FingerprintConfig,
+    session_url: str = "",
 ) -> None:
     if config.user_agent:
         override: dict[str, Any] = {
@@ -105,6 +119,7 @@ def _apply_chromium_fingerprint(
 
     if config.geolocation is not None:
         latitude, longitude = config.geolocation
+        _grant_geolocation_permission(driver, session_url)
         driver.execute_cdp_cmd(
             "Emulation.setGeolocationOverride",
             {
@@ -141,6 +156,10 @@ def _build_chromium_fingerprint_script(config: FingerprintConfig) -> str:
     if features_detection_patch:
         patches.append(features_detection_patch)
 
+    geolocation_patch = _build_geolocation_patch(config)
+    if geolocation_patch:
+        patches.append(geolocation_patch)
+
     if config.canvas_mode in {"noise", "fixed"}:
         patches.append(_build_canvas_patch(config))
 
@@ -166,3 +185,48 @@ def _build_chromium_fingerprint_script(config: FingerprintConfig) -> str:
         + "\n".join(patches)
         + "\n})();"
     )
+
+
+def _grant_geolocation_permission(driver: webdriver.Chrome, session_url: str) -> None:
+    origin = _origin_from_url(session_url)
+    payload: dict[str, Any] = {"permissions": ["geolocation"]}
+    if origin:
+        payload["origin"] = origin
+
+    try:
+        driver.execute_cdp_cmd("Browser.grantPermissions", payload)
+        logger.info("Granted geolocation permission%s", f" for {origin}" if origin else "")
+    except Exception:
+        logger.exception("Failed to grant geolocation permission")
+
+
+def _origin_from_url(url: str) -> str:
+    parsed = urlsplit(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return ""
+    return f"{parsed.scheme}://{parsed.netloc}"
+
+
+def _fingerprint_extension_dir(profile_dir: Path, script: str) -> Path:
+    digest = hashlib.sha256(script.encode("utf-8")).hexdigest()[
+        : APP_CONFIG.chromium_extensions.fingerprint_extension_digest_length
+    ]
+    dirname = f"{APP_CONFIG.chromium_extensions.fingerprint_extension_dirname}_{digest}"
+    return profile_dir / dirname
+
+
+def _cleanup_old_fingerprint_extensions(profile_dir: Path, *, keep_dir: Path) -> None:
+    prefix = APP_CONFIG.chromium_extensions.fingerprint_extension_dirname
+    if not profile_dir.exists():
+        return
+
+    for path in profile_dir.iterdir():
+        if path == keep_dir or not path.is_dir():
+            continue
+        if path.name != prefix and not path.name.startswith(f"{prefix}_"):
+            continue
+        try:
+            shutil.rmtree(path)
+            logger.info("Removed stale fingerprint extension at %s", path)
+        except OSError:
+            logger.exception("Failed to remove stale fingerprint extension at %s", path)
