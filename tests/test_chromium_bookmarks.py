@@ -70,7 +70,12 @@ class ChromiumBookmarksTest(unittest.TestCase):
                                 "type": "folder",
                             },
                             "other": {"children": [], "id": "2", "name": "Other", "type": "folder"},
-                            "synced": {"children": [], "id": "3", "name": "Mobile", "type": "folder"},
+                            "synced": {
+                                "children": [],
+                                "id": "3",
+                                "name": "Mobile",
+                                "type": "folder",
+                            },
                         },
                         "version": 1,
                     }

@@ -31,7 +31,6 @@ assert VALID_TLS_PROFILES == set(get_args(TLSProfile))
 
 @dataclass(slots=True)
 class FingerprintConfig:
-
     # === Скрытие автоматизации ===
     hide_automation: bool = True  # navigator.webdriver, CDP артефакты
     hide_headless: bool = True  # признаки headless-режима
@@ -164,7 +163,9 @@ class FingerprintConfig:
             errors.append(f"Invalid webrtc_mode: {self.webrtc_mode}")
 
         if self.hardware_concurrency is not None:
-            if not isinstance(self.hardware_concurrency, int) or isinstance(self.hardware_concurrency, bool):
+            if not isinstance(self.hardware_concurrency, int) or isinstance(
+                self.hardware_concurrency, bool
+            ):
                 errors.append("hardware_concurrency must be an integer")
             elif not (
                 _VALIDATION_CONFIG.hardware_concurrency_min

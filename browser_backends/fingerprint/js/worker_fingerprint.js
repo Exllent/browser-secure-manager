@@ -1,7 +1,7 @@
 'use strict';
 (() => {
     if (self.__secureBrowserWorkerFingerprintApplied) return;
-    Object.defineProperty(self, '__secureBrowserWorkerFingerprintApplied', { value: true });
+    Object.defineProperty(self, '__secureBrowserWorkerFingerprintApplied', {value: true});
 
     const secureBrowserWorkerConfig = __SECURE_BROWSER_CONFIG__;
     const secureBrowserPatchWorkerCanvas = secureBrowserWorkerConfig.patchCanvas;
@@ -78,7 +78,7 @@
 
     const patchCanvas2DPrototype = (prototype, markerProperty) => {
         if (!prototype || prototype[markerProperty] || !prototype.getImageData) return;
-        Object.defineProperty(prototype, markerProperty, { value: true });
+        Object.defineProperty(prototype, markerProperty, {value: true});
         const originalGetImageData = prototype.getImageData;
         prototype.getImageData = new Proxy(originalGetImageData, {
             apply(target, thisArg, args) {
@@ -98,7 +98,7 @@
     if (self.OffscreenCanvas && OffscreenCanvas.prototype.convertToBlob
         && secureBrowserPatchWorkerCanvas
         && !OffscreenCanvas.prototype.__secureBrowserWorkerConvertToBlobPatched) {
-        Object.defineProperty(OffscreenCanvas.prototype, '__secureBrowserWorkerConvertToBlobPatched', { value: true });
+        Object.defineProperty(OffscreenCanvas.prototype, '__secureBrowserWorkerConvertToBlobPatched', {value: true});
         const originalConvertToBlob = OffscreenCanvas.prototype.convertToBlob;
         OffscreenCanvas.prototype.convertToBlob = new Proxy(originalConvertToBlob, {
             apply(target, thisArg, args) {
@@ -116,7 +116,8 @@
                             0
                         );
                     }
-                } catch (error) {}
+                } catch (error) {
+                }
                 return Reflect.apply(target, thisArg, args);
             }
         });
@@ -140,7 +141,7 @@
 
     const patchWebGLPrototype = (prototype) => {
         if (!prototype || prototype.__secureBrowserWorkerWebGLPatched) return;
-        Object.defineProperty(prototype, '__secureBrowserWorkerWebGLPatched', { value: true });
+        Object.defineProperty(prototype, '__secureBrowserWorkerWebGLPatched', {value: true});
 
         const originalGetParameter = prototype.getParameter;
         prototype.getParameter = new Proxy(originalGetParameter, {

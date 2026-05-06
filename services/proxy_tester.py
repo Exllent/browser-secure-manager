@@ -94,7 +94,9 @@ def _open_socks5_tunnel(
             raise ValueError(f"unsupported SOCKS5 auth method: {response[1]}")
 
         target = target_host.encode("idna")
-        request = bytes([0x05, 0x01, 0x00, 0x03, len(target)]) + target + target_port.to_bytes(2, "big")
+        request = (
+            bytes([0x05, 0x01, 0x00, 0x03, len(target)]) + target + target_port.to_bytes(2, "big")
+        )
         sock.sendall(request)
         header = _recv_exact(sock, 4)
         if header[0] != 0x05:
@@ -170,7 +172,7 @@ def _open_http_tunnel(
             "Proxy-Connection: keep-alive",
         ]
         if proxy.username or proxy.password:
-            credentials = f"{proxy.username}:{proxy.password}".encode("utf-8")
+            credentials = f"{proxy.username}:{proxy.password}".encode()
             token = base64.b64encode(credentials).decode("ascii")
             headers.append(f"Proxy-Authorization: Basic {token}")
         request = "\r\n".join(headers) + "\r\n\r\n"

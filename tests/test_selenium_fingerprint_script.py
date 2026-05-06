@@ -8,8 +8,9 @@ from unittest import mock
 
 from selenium.webdriver.chrome.options import Options as ChromeOptions
 
-from browser_backends.fingerprint.templates import JS_DIR
+from app_config import APP_CONFIG
 from browser_backends import selenium_backend as selenium_backend_module
+from browser_backends.fingerprint.templates import JS_DIR
 from browser_backends.selenium_backend import (
     SeleniumBrowserBackend,
     _apply_chromium_fingerprint,
@@ -20,7 +21,6 @@ from browser_backends.selenium_backend import (
     _log_fingerprint_runtime_state,
     _webrtc_leak_prevent_extension_path,
 )
-from app_config import APP_CONFIG
 from models.browser_config import BrowserConfig
 from models.fingerprint_config import FingerprintConfig
 from models.session_entry import SessionEntry
@@ -428,9 +428,7 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
         self.assertIn("world: 'MAIN'", background_script)
 
         load_extension_args = [
-            argument
-            for argument in options.arguments
-            if argument.startswith("--load-extension=")
+            argument for argument in options.arguments if argument.startswith("--load-extension=")
         ]
         self.assertEqual(len(load_extension_args), 1)
         self.assertIn(str(_webrtc_leak_prevent_extension_path()), load_extension_args[0])

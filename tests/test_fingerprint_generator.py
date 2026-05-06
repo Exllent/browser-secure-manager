@@ -15,10 +15,7 @@ class FingerprintGeneratorTest(unittest.TestCase):
             self.assertEqual(config.validate(), [])
 
     def test_generated_configs_get_different_canvas_seeds(self) -> None:
-        seeds = {
-            generate_fingerprint_config().canvas_noise_seed
-            for _ in range(20)
-        }
+        seeds = {generate_fingerprint_config().canvas_noise_seed for _ in range(20)}
 
         self.assertGreater(len(seeds), 1)
 

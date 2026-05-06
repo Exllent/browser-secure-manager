@@ -5,10 +5,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app.logging_config import export_log_file
+from app.session_process import SessionProcessEvent, SessionProcessManager
 from app_config import APP_CONFIG
 from browser_backends.base import BrowserBackend
 from db import storage
-from app.session_process import SessionProcessEvent, SessionProcessManager
 from models.browser_config import BrowserConfig
 from models.fingerprint_profile import FingerprintProfile
 from models.proxy_config import ProxyConfig
@@ -255,7 +255,9 @@ class AppService:
     def test_proxy(self, proxy: ProxyConfig) -> ProxyTestResult:
         result = test_proxy(proxy)
         if result.ok:
-            logger.info("Proxy test passed for %s in %s ms", proxy.display_name(), result.elapsed_ms)
+            logger.info(
+                "Proxy test passed for %s in %s ms", proxy.display_name(), result.elapsed_ms
+            )
         else:
             logger.warning("Proxy test failed for %s: %s", proxy.display_name(), result.message)
         return result

@@ -18,8 +18,7 @@ def parse_proxy_csv(path: Path) -> list[ProxyConfig]:
             host = _csv_value(row, "ip", "host", "address")
             port_text = _csv_value(row, "port")
             protocol = (
-                _csv_value(row, "protocols", "protocol", "type")
-                or APP_CONFIG.proxies.default_type
+                _csv_value(row, "protocols", "protocol", "type") or APP_CONFIG.proxies.default_type
             )
 
             if not host or not port_text:
@@ -51,7 +50,6 @@ def parse_proxy_csv(path: Path) -> list[ProxyConfig]:
     return proxies
 
 
-
 def _csv_value(row: dict[str, str], *names: str) -> str:
     lowered = {key.lower(): value for key, value in row.items() if key is not None}
     for name in names:
@@ -59,7 +57,6 @@ def _csv_value(row: dict[str, str], *names: str) -> str:
         if value is not None:
             return value.strip()
     return ""
-
 
 
 def _normalize_csv_protocol(value: str) -> str:

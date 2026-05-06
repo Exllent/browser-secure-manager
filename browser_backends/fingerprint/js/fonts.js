@@ -101,7 +101,7 @@ const buildRect = (rect, widthDelta, heightDelta) => {
 
 const fontFaceSetPrototype = document.fonts && Object.getPrototypeOf(document.fonts);
 if (fontFaceSetPrototype && fontFaceSetPrototype.check && !fontFaceSetPrototype.__secureBrowserFontCheckPatched) {
-    Object.defineProperty(fontFaceSetPrototype, '__secureBrowserFontCheckPatched', { value: true });
+    Object.defineProperty(fontFaceSetPrototype, '__secureBrowserFontCheckPatched', {value: true});
     const originalFontCheck = fontFaceSetPrototype.check;
     fontFaceSetPrototype.check = new Proxy(originalFontCheck, {
         apply(target, thisArg, args) {

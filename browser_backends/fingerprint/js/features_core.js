@@ -15,7 +15,8 @@ const defineSecureBrowserFeature = (target, property, value) => {
             get: () => value,
             configurable: true
         });
-    } catch (error) {}
+    } catch (error) {
+    }
 };
 const defineSecureBrowserValue = (target, property, value) => {
     try {
@@ -24,7 +25,8 @@ const defineSecureBrowserValue = (target, property, value) => {
             configurable: true,
             writable: true
         });
-    } catch (error) {}
+    } catch (error) {
+    }
 };
 
 defineSecureBrowserFeature(
@@ -49,11 +51,12 @@ defineSecureBrowserFeature(
 );
 try {
     Navigator.prototype.javaEnabled = () => secureBrowserFeatureDetectionProfile.javaEnabled;
-} catch (error) {}
+} catch (error) {
+}
 
 const patchSecureBrowserMediaSupport = (prototype, fallbackSupport) => {
     if (!prototype || prototype.__secureBrowserFeatureMediaPatched || !prototype.canPlayType) return;
-    Object.defineProperty(prototype, '__secureBrowserFeatureMediaPatched', { value: true });
+    Object.defineProperty(prototype, '__secureBrowserFeatureMediaPatched', {value: true});
     const originalCanPlayType = prototype.canPlayType;
     prototype.canPlayType = new Proxy(originalCanPlayType, {
         apply(target, thisArg, args) {
@@ -75,7 +78,7 @@ patchSecureBrowserMediaSupport(window.HTMLAudioElement && HTMLAudioElement.proto
 patchSecureBrowserMediaSupport(window.HTMLVideoElement && HTMLVideoElement.prototype, 'maybe');
 
 if (window.CSS && CSS.supports && !CSS.__secureBrowserFeatureSupportsPatched) {
-    Object.defineProperty(CSS, '__secureBrowserFeatureSupportsPatched', { value: true });
+    Object.defineProperty(CSS, '__secureBrowserFeatureSupportsPatched', {value: true});
     const originalCssSupports = CSS.supports.bind(CSS);
     CSS.supports = (...args) => {
         const query = args.length === 1
@@ -96,13 +99,15 @@ if (window.CSS && CSS.supports && !CSS.__secureBrowserFeatureSupportsPatched) {
 
 try {
     if (!window.localStorage) defineSecureBrowserValue(window, 'localStorage', {});
-} catch (error) {}
+} catch (error) {
+}
 try {
     if (!window.sessionStorage) defineSecureBrowserValue(window, 'sessionStorage', {});
-} catch (error) {}
+} catch (error) {
+}
 if (!navigator.storage) {
     defineSecureBrowserValue(navigator, 'storage', Object.freeze({
-        estimate: async () => ({ quota: 10737418240, usage: 0 }),
+        estimate: async () => ({quota: 10737418240, usage: 0}),
         persisted: async () => false
     }));
 }
@@ -118,17 +123,21 @@ if (!navigator.geolocation) {
     }));
 }
 if (!window.Notification) {
-    defineSecureBrowserValue(window, 'Notification', function Notification() {});
+    defineSecureBrowserValue(window, 'Notification', function Notification() {
+    });
     defineSecureBrowserValue(window.Notification, 'permission', 'default');
 }
 if (!window.PublicKeyCredential) {
-    defineSecureBrowserValue(window, 'PublicKeyCredential', function PublicKeyCredential() {});
+    defineSecureBrowserValue(window, 'PublicKeyCredential', function PublicKeyCredential() {
+    });
 }
 if (!window.TextEncoder) {
-    defineSecureBrowserValue(window, 'TextEncoder', function TextEncoder() {});
+    defineSecureBrowserValue(window, 'TextEncoder', function TextEncoder() {
+    });
 }
 if (!window.TextDecoder) {
-    defineSecureBrowserValue(window, 'TextDecoder', function TextDecoder() {});
+    defineSecureBrowserValue(window, 'TextDecoder', function TextDecoder() {
+    });
 }
 if (secureBrowserFeatureDetectionProfile.webrtc) {
     if (!window.RTCPeerConnection && window.webkitRTCPeerConnection) {
@@ -155,8 +164,9 @@ if (secureBrowserFeatureDetectionProfile.webrtc) {
 const patchModernizrResults = (modernizr) => {
     if (!modernizr || modernizr.__secureBrowserFeatureDetectionPatched) return modernizr;
     try {
-        Object.defineProperty(modernizr, '__secureBrowserFeatureDetectionPatched', { value: true });
-    } catch (error) {}
+        Object.defineProperty(modernizr, '__secureBrowserFeatureDetectionPatched', {value: true});
+    } catch (error) {
+    }
     const stableResults = {
         applicationcache: false,
         audio: true,
@@ -214,7 +224,8 @@ const patchModernizrResults = (modernizr) => {
     for (const [feature, value] of Object.entries(stableResults)) {
         try {
             modernizr[feature] = value;
-        } catch (error) {}
+        } catch (error) {
+        }
     }
     try {
         modernizr.audio = Object.assign(new Boolean(true), {
@@ -224,7 +235,8 @@ const patchModernizrResults = (modernizr) => {
             opus: 'probably',
             wav: 'probably'
         });
-    } catch (error) {}
+    } catch (error) {
+    }
     try {
         modernizr.video = Object.assign(new Boolean(true), {
             h264: 'probably',
@@ -233,7 +245,8 @@ const patchModernizrResults = (modernizr) => {
             vp9: 'probably',
             webm: 'probably'
         });
-    } catch (error) {}
+    } catch (error) {
+    }
     return modernizr;
 };
 let secureBrowserModernizrValue = window.Modernizr;
@@ -249,7 +262,8 @@ try {
         },
         configurable: true
     });
-} catch (error) {}
+} catch (error) {
+}
 
 if (!window.chrome) {
     Object.defineProperty(window, 'chrome', {

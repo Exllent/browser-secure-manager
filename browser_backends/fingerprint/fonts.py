@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from models.fingerprint_config import FingerprintConfig
-
 from app_config import APP_CONFIG
+from models.fingerprint_config import FingerprintConfig
 
 from .templates import _render_js_template
 

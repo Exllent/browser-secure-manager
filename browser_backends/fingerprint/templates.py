@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 from typing import Any
 
@@ -9,7 +9,7 @@ JS_DIR = Path(__file__).resolve().parent / "js"
 CONFIG_PLACEHOLDER = "__SECURE_BROWSER_CONFIG__"
 
 
-@lru_cache(maxsize=None)
+@cache
 def _read_js_template(name: str) -> str:
     return (JS_DIR / name).read_text(encoding="utf-8")
 

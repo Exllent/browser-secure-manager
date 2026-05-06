@@ -4,8 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from db import config as db_config
-from db import storage
+from db import config as db_config, storage
 from models.fingerprint_config import FingerprintConfig
 from models.fingerprint_profile import FingerprintProfile
 from models.session_entry import SessionEntry
@@ -53,7 +52,9 @@ class FingerprintStorageTest(unittest.TestCase):
 
         self.assertEqual(saved.id, session.id)
         self.assertEqual(saved.fingerprint_id, profile.id)
-        self.assertEqual(storage.get_fingerprint_profile(profile.id).config.timezone, "Europe/Moscow")
+        self.assertEqual(
+            storage.get_fingerprint_profile(profile.id).config.timezone, "Europe/Moscow"
+        )
 
     def test_deleting_fingerprint_detaches_sessions(self) -> None:
         profile = storage.upsert_fingerprint_profile(
@@ -88,21 +89,15 @@ class FingerprintStorageTest(unittest.TestCase):
 
     def test_init_db_removes_unsupported_browser_configs(self) -> None:
         with storage._connect() as connection:  # noqa: SLF001
-            connection.execute(
-                """
+            connection.execute("""
                 INSERT INTO browser_configs (key, display_name, browser_type, executable_path, enabled)
                 VALUES ('firefox', 'Firefox', 'firefox', '', 1)
-                """
-            )
-            connection.execute(
-                """
-                INSERT INTO sessions (
-                    name, url, browser, profile_path, proxy_id, fingerprint_id,
-                    proxy_label, custom_user_agent, notes, window_width, window_height, status
-                )
+                """)
+            connection.execute("""
+                INSERT INTO sessions (name, url, browser, profile_path, proxy_id, fingerprint_id,
+                                      proxy_label, custom_user_agent, notes, window_width, window_height, status)
                 VALUES ('Firefox session', 'about:blank', 'firefox', '', NULL, NULL, '', '', '', 1280, 800, 'idle')
-                """
-            )
+                """)
 
         storage.init_db()
 

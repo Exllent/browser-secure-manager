@@ -118,7 +118,9 @@ class SessionSettingsDialog(QDialog):
         self.general_button.clicked.connect(lambda: self.stack.setCurrentWidget(self.general_page))
         self.profile_button.clicked.connect(lambda: self.stack.setCurrentWidget(self.profile_page))
         self.proxy_button.clicked.connect(lambda: self.stack.setCurrentWidget(self.proxy_page))
-        self.fingerprint_button.clicked.connect(lambda: self.stack.setCurrentWidget(self.fingerprint_page))
+        self.fingerprint_button.clicked.connect(
+            lambda: self.stack.setCurrentWidget(self.fingerprint_page)
+        )
         self.window_button.clicked.connect(lambda: self.stack.setCurrentWidget(self.window_page))
         self.notes_button.clicked.connect(lambda: self.stack.setCurrentWidget(self.notes_page))
 
@@ -237,9 +239,7 @@ class SessionSettingsDialog(QDialog):
             id=self._session.id,
             name=self._session.name,
             url=self.url_edit.text().strip() or "about:blank",
-            browser=str(
-                self.browser_combo.currentData() or APP_CONFIG.storage.default_browser_key
-            ),
+            browser=str(self.browser_combo.currentData() or APP_CONFIG.storage.default_browser_key),
             profile_path=self.profile_path_edit.text().strip(),
             proxy_id=self.proxy_combo.currentData(),
             fingerprint_id=self.fingerprint_combo.currentData(),

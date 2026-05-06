@@ -20,6 +20,7 @@ from services.proxy_tester import test_proxy
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass(slots=True)
 class SessionProcessEvent:
     session_id: int
@@ -97,11 +98,11 @@ class SessionProcessManager:
             return False
 
         if record.process.is_alive():
-            logger.info("Stopping session process %s for session %s", record.process.pid, session_id)
+            logger.info(
+                "Stopping session process %s for session %s", record.process.pid, session_id
+            )
             try:
-                record.command_queue.put_nowait(
-                    {"type": APP_CONFIG.session_process.stop_command}
-                )
+                record.command_queue.put_nowait({"type": APP_CONFIG.session_process.stop_command})
             except Exception:
                 logger.exception("Failed to send stop command to session process %s", session_id)
 
@@ -121,7 +122,11 @@ class SessionProcessManager:
                 record.process.kill()
                 record.process.join(timeout)
 
-        logger.info("Session process for session %s stopped with exit code %s", session_id, record.process.exitcode)
+        logger.info(
+            "Session process for session %s stopped with exit code %s",
+            session_id,
+            record.process.exitcode,
+        )
         record.process.close()
         return True
 
@@ -137,9 +142,7 @@ class SessionProcessManager:
 
     def active_session_ids(self) -> set[int]:
         return {
-            session_id
-            for session_id, record in self._records.items()
-            if record.process.is_alive()
+            session_id for session_id, record in self._records.items() if record.process.is_alive()
         }
 
     def poll_events(self) -> list[SessionProcessEvent]:
@@ -189,7 +192,9 @@ class SessionProcessManager:
             }:
                 continue
             if record.state == APP_CONFIG.session_process.running_state or exitcode == 0:
-                logger.info("Session process for session %s exited with code %s", session_id, exitcode)
+                logger.info(
+                    "Session process for session %s exited with code %s", session_id, exitcode
+                )
                 events.append(
                     SessionProcessEvent(
                         session_id=session_id,

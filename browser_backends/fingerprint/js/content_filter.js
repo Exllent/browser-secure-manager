@@ -12,7 +12,7 @@ const secureBrowserIsAdBlockBait = (element) => {
 
 const originalSecureBrowserGetComputedStyle = window.getComputedStyle && window.getComputedStyle.bind(window);
 if (originalSecureBrowserGetComputedStyle && !window.__secureBrowserAdBlockStylePatched) {
-    Object.defineProperty(window, '__secureBrowserAdBlockStylePatched', { value: true });
+    Object.defineProperty(window, '__secureBrowserAdBlockStylePatched', {value: true});
     window.getComputedStyle = (element, pseudoElement) => {
         const style = originalSecureBrowserGetComputedStyle(element, pseudoElement);
         if (!secureBrowserIsAdBlockBait(element)) return style;

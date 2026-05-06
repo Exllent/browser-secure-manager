@@ -2,12 +2,11 @@ from __future__ import annotations
 
 import logging
 import sqlite3
-from typing import Iterable
-
-from models.browser_config import BrowserConfig
-from models.session_entry import SessionEntry
+from collections.abc import Iterable
 
 from app_config import APP_CONFIG
+from models.browser_config import BrowserConfig
+from models.session_entry import SessionEntry
 
 from . import config
 from .browsers import upsert_browser_config
@@ -21,71 +20,166 @@ def init_db() -> None:
     config.PROFILES_DIR.mkdir(parents=True, exist_ok=True)
 
     with config.connect() as connection:
-        connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS sessions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                url TEXT NOT NULL,
-                browser TEXT NOT NULL,
-                profile_path TEXT NOT NULL,
-                proxy_id INTEGER,
-                fingerprint_id INTEGER,
-                proxy_label TEXT DEFAULT '',
-                custom_user_agent TEXT DEFAULT '',
-                notes TEXT DEFAULT '',
-                window_width INTEGER DEFAULT 1280,
-                window_height INTEGER DEFAULT 800,
-                status TEXT DEFAULT 'idle'
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS sessions
+            (
+                id
+                INTEGER
+                PRIMARY
+                KEY
+                AUTOINCREMENT,
+                name
+                TEXT
+                NOT
+                NULL,
+                url
+                TEXT
+                NOT
+                NULL,
+                browser
+                TEXT
+                NOT
+                NULL,
+                profile_path
+                TEXT
+                NOT
+                NULL,
+                proxy_id
+                INTEGER,
+                fingerprint_id
+                INTEGER,
+                proxy_label
+                TEXT
+                DEFAULT
+                '',
+                custom_user_agent
+                TEXT
+                DEFAULT
+                '',
+                notes
+                TEXT
+                DEFAULT
+                '',
+                window_width
+                INTEGER
+                DEFAULT
+                1280,
+                window_height
+                INTEGER
+                DEFAULT
+                800,
+                status
+                TEXT
+                DEFAULT
+                'idle'
             )
-            """
-        )
+            """)
         _ensure_session_columns(connection)
-        connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS proxy_configs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                label TEXT DEFAULT '',
-                host TEXT NOT NULL,
-                port INTEGER NOT NULL,
-                proxy_type TEXT DEFAULT 'socks5',
-                username TEXT DEFAULT '',
-                password TEXT DEFAULT '',
-                enabled INTEGER DEFAULT 1
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS proxy_configs
+            (
+                id
+                INTEGER
+                PRIMARY
+                KEY
+                AUTOINCREMENT,
+                label
+                TEXT
+                DEFAULT
+                '',
+                host
+                TEXT
+                NOT
+                NULL,
+                port
+                INTEGER
+                NOT
+                NULL,
+                proxy_type
+                TEXT
+                DEFAULT
+                'socks5',
+                username
+                TEXT
+                DEFAULT
+                '',
+                password
+                TEXT
+                DEFAULT
+                '',
+                enabled
+                INTEGER
+                DEFAULT
+                1
             )
-            """
-        )
+            """)
         _ensure_proxy_columns(connection)
-        connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS browser_configs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                key TEXT NOT NULL UNIQUE,
-                display_name TEXT NOT NULL,
-                browser_type TEXT NOT NULL,
-                executable_path TEXT DEFAULT '',
-                enabled INTEGER DEFAULT 1
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS browser_configs
+            (
+                id
+                INTEGER
+                PRIMARY
+                KEY
+                AUTOINCREMENT,
+                key
+                TEXT
+                NOT
+                NULL
+                UNIQUE,
+                display_name
+                TEXT
+                NOT
+                NULL,
+                browser_type
+                TEXT
+                NOT
+                NULL,
+                executable_path
+                TEXT
+                DEFAULT
+                '',
+                enabled
+                INTEGER
+                DEFAULT
+                1
             )
-            """
-        )
-        connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS fingerprint_profiles (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                config_json TEXT NOT NULL,
-                enabled INTEGER DEFAULT 1
+            """)
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS fingerprint_profiles
+            (
+                id
+                INTEGER
+                PRIMARY
+                KEY
+                AUTOINCREMENT,
+                name
+                TEXT
+                NOT
+                NULL,
+                config_json
+                TEXT
+                NOT
+                NULL,
+                enabled
+                INTEGER
+                DEFAULT
+                1
             )
-            """
-        )
-        connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS app_settings (
-                key TEXT PRIMARY KEY,
-                value TEXT NOT NULL
+            """)
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS app_settings
+            (
+                key
+                TEXT
+                PRIMARY
+                KEY,
+                value
+                TEXT
+                NOT
+                NULL
             )
-            """
-        )
+            """)
         _seed_default_browser_configs(connection)
         _remove_unsupported_browser_configs(connection)
 
@@ -125,17 +219,15 @@ def _remove_unsupported_browser_configs(connection: sqlite3.Connection) -> None:
         """
         UPDATE sessions
         SET browser = ?
-        WHERE browser NOT IN (SELECT key FROM browser_configs)
+        WHERE browser NOT IN (SELECT key
+        FROM browser_configs)
         """,
         (APP_CONFIG.storage.default_browser_key,),
     )
 
 
 def _ensure_session_columns(connection: sqlite3.Connection) -> None:
-    columns = {
-        row["name"]
-        for row in connection.execute("PRAGMA table_info(sessions)").fetchall()
-    }
+    columns = {row["name"] for row in connection.execute("PRAGMA table_info(sessions)").fetchall()}
     if "proxy_id" not in columns:
         logger.info("Adding missing sessions.proxy_id column")
         connection.execute("ALTER TABLE sessions ADD COLUMN proxy_id INTEGER")
@@ -144,21 +236,16 @@ def _ensure_session_columns(connection: sqlite3.Connection) -> None:
         connection.execute("ALTER TABLE sessions ADD COLUMN fingerprint_id INTEGER")
     if "custom_user_agent" not in columns:
         logger.info("Adding missing sessions.custom_user_agent column")
-        connection.execute(
-            "ALTER TABLE sessions ADD COLUMN custom_user_agent TEXT DEFAULT ''"
-        )
+        connection.execute("ALTER TABLE sessions ADD COLUMN custom_user_agent TEXT DEFAULT ''")
 
 
 def _ensure_proxy_columns(connection: sqlite3.Connection) -> None:
     columns = {
-        row["name"]
-        for row in connection.execute("PRAGMA table_info(proxy_configs)").fetchall()
+        row["name"] for row in connection.execute("PRAGMA table_info(proxy_configs)").fetchall()
     }
     if "proxy_type" not in columns:
         logger.info("Adding missing proxy_configs.proxy_type column")
-        connection.execute(
-            "ALTER TABLE proxy_configs ADD COLUMN proxy_type TEXT DEFAULT 'socks5'"
-        )
+        connection.execute("ALTER TABLE proxy_configs ADD COLUMN proxy_type TEXT DEFAULT 'socks5'")
 
 
 def _demo_sessions() -> Iterable[SessionEntry]:

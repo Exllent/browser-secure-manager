@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import logging
 import os
-from pathlib import Path
 import platform
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 from app_config import APP_CONFIG, BrowserCandidateConfig
 from models.browser_config import BrowserConfig
@@ -80,7 +80,10 @@ def _browser_binary_from_config(
         required=required,
     )
     if path is None:
-        logger.warning("No explicit browser binary configured for %s; Selenium will use driver defaults", default_browser_name)
+        logger.warning(
+            "No explicit browser binary configured for %s; Selenium will use driver defaults",
+            default_browser_name,
+        )
     else:
         logger.info("Using detected browser binary for %s: %s", default_browser_name, path)
     return path
@@ -165,9 +168,7 @@ def _opera_candidates() -> tuple[str, ...]:
 def _candidate_paths(browser: BrowserCandidateConfig) -> tuple[str, ...]:
     if sys.platform == "darwin":
         return tuple(
-            str(Path.home() / path[2:])
-            if path.startswith("~/")
-            else path
+            str(Path.home() / path[2:]) if path.startswith("~/") else path
             for path in browser.mac_paths
         )
     if sys.platform == "win32":
@@ -228,7 +229,9 @@ def _validate_browser_binary(
         raise RuntimeError(f"{browser_name}: cannot run executable: {path}\n{exc}") from exc
 
     output = f"{result.stdout}\n{result.stderr}".strip()
-    keyword_mismatch = version_keywords and not any(keyword in output for keyword in version_keywords)
+    keyword_mismatch = version_keywords and not any(
+        keyword in output for keyword in version_keywords
+    )
     if result.returncode != 0 or keyword_mismatch:
         raise RuntimeError(
             f"{browser_name}: selected executable does not look like a supported browser.\n"

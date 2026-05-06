@@ -53,5 +53,6 @@ try {
             value: secureBrowserGeolocation,
             configurable: true
         });
-    } catch (nestedError) {}
+    } catch (nestedError) {
+    }
 }

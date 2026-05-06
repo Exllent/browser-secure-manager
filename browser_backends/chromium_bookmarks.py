@@ -76,23 +76,35 @@ def _ensure_chromium_top_sites(profile_dir: Path) -> None:
 
     connection = sqlite3.connect(top_sites_path)
     try:
-        connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS meta (
-                key LONGVARCHAR NOT NULL UNIQUE PRIMARY KEY,
-                value LONGVARCHAR
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS meta
+            (
+                key
+                LONGVARCHAR
+                NOT
+                NULL
+                UNIQUE
+                PRIMARY
+                KEY,
+                value
+                LONGVARCHAR
             )
-            """
-        )
-        connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS top_sites (
-                url LONGVARCHAR NOT NULL PRIMARY KEY,
-                url_rank INTEGER,
-                title LONGVARCHAR
+            """)
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS top_sites
+            (
+                url
+                LONGVARCHAR
+                NOT
+                NULL
+                PRIMARY
+                KEY,
+                url_rank
+                INTEGER,
+                title
+                LONGVARCHAR
             )
-            """
-        )
+            """)
         for key, value in (
             ("mmap_status", "-1"),
             ("version", "5"),

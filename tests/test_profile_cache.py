@@ -7,9 +7,7 @@ from pathlib import Path
 
 from app.app_service import AppService
 from browser_backends.base import BrowserBackend
-from db import config as db_config
-from db import profile_cache
-from db import storage
+from db import config as db_config, profile_cache, storage
 from models.browser_config import BrowserConfig
 from models.session_entry import SessionEntry
 
@@ -85,7 +83,9 @@ class ProfileCacheTest(unittest.TestCase):
         orphan_path.mkdir(parents=True)
         old_profile_created_at = profile_cache._profile_created_at  # noqa: SLF001
         try:
-            profile_cache._profile_created_at = lambda _path: datetime(2000, 1, 1, tzinfo=UTC)  # type: ignore[assignment]  # noqa: SLF001
+            profile_cache._profile_created_at = lambda _path: datetime(
+                2000, 1, 1, tzinfo=UTC
+            )  # type: ignore[assignment]  # noqa: SLF001
 
             deleted = storage.cleanup_expired_profile_cache()
         finally:

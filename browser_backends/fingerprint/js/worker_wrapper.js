@@ -7,7 +7,7 @@ const secureBrowserWrapWorkerUrl = (workerUrl, workerOptions) => {
         const wrapperSource = isModule
             ? secureBrowserWorkerFingerprintScript + '\nimport ' + JSON.stringify(originalUrl) + ';'
             : secureBrowserWorkerFingerprintScript + '\nimportScripts(' + JSON.stringify(originalUrl) + ');';
-        return URL.createObjectURL(new Blob([wrapperSource], { type: 'application/javascript' }));
+        return URL.createObjectURL(new Blob([wrapperSource], {type: 'application/javascript'}));
     } catch (error) {
         return workerUrl;
     }
@@ -30,7 +30,7 @@ const secureBrowserPatchWorkerConstructor = (globalName) => {
             return Reflect.construct(target, args, newTarget);
         }
     });
-    Object.defineProperty(PatchedWorkerConstructor, '__secureBrowserWorkerPatched', { value: true });
+    Object.defineProperty(PatchedWorkerConstructor, '__secureBrowserWorkerPatched', {value: true});
     Object.defineProperty(window, globalName, {
         value: PatchedWorkerConstructor,
         configurable: true,

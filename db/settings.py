@@ -17,8 +17,8 @@ def set_setting(key: str, value: str) -> None:
         connection.execute(
             """
             INSERT INTO app_settings (key, value)
-            VALUES (?, ?)
-            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+            VALUES (?, ?) ON CONFLICT(key) DO
+            UPDATE SET value = excluded.value
             """,
             (key, value),
         )
@@ -26,7 +26,5 @@ def set_setting(key: str, value: str) -> None:
 
 def get_all_settings() -> dict[str, str]:
     with config.connect() as connection:
-        rows = connection.execute(
-            "SELECT key, value FROM app_settings ORDER BY key"
-        ).fetchall()
+        rows = connection.execute("SELECT key, value FROM app_settings ORDER BY key").fetchall()
     return {str(row["key"]): str(row["value"]) for row in rows}

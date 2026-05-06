@@ -186,7 +186,9 @@ class MainWindow(QMainWindow):
         if not _confirm_delete(
             self,
             _("Load backup"),
-            _("Loading a full backup replaces current data. Session backups add one session. Continue?"),
+            _(
+                "Loading a full backup replaces current data. Session backups add one session. Continue?"
+            ),
         ):
             return
 

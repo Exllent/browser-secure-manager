@@ -4,8 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from db import config as db_config
-from db import storage
+from db import config as db_config, storage
 from models.fingerprint_config import FingerprintConfig
 from models.fingerprint_profile import FingerprintProfile
 from models.proxy_config import ProxyConfig

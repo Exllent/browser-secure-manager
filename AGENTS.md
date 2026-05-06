@@ -361,6 +361,16 @@ python -m unittest tests.test_chromium_bookmarks
 
 Use focused tests while iterating, then run full discovery before finalizing code changes when feasible.
 
+Formatting and linting are part of every code change. After creating or editing Python files, run:
+
+```bash
+uv run black <paths>
+uv run ruff check <paths> --fix
+uv run ruff check <paths>
+```
+
+For whole-project cleanup or before a broad commit, use `.` instead of explicit paths. Ruff owns import sorting and practical lint checks; Black owns formatting. The Ruff config intentionally keeps high-signal checks and avoids noisy docstring, annotation, and line-length churn.
+
 For syntax checks:
 
 ```bash

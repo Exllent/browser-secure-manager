@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import json
 
-from models.fingerprint_config import FingerprintConfig
-
 from app_config import APP_CONFIG
+from models.fingerprint_config import FingerprintConfig
 
 from .templates import _read_js_template, _render_js_template
 from .utils import _stable_noise_seed

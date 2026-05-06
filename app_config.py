@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-
 ROOT_DIR = Path(__file__).resolve().parent
 
 
@@ -300,9 +299,7 @@ class BrowserDiscoveryConfig:
     def chromium_command_names(self) -> tuple[str, ...]:
         return tuple(
             dict.fromkeys(
-                command
-                for candidate in self.candidates
-                for command in candidate.command_names
+                command for candidate in self.candidates for command in candidate.command_names
             )
         )
 

@@ -32,11 +32,10 @@ from models.fingerprint_generator import generate_fingerprint_profile
 from models.fingerprint_profile import FingerprintProfile
 from models.proxy_config import ProxyConfig
 
-from .browser_config_row import BrowserConfigRow, _make_browser_key
-from .fingerprint_config_dialog import FingerprintConfigDialog, _split_csv, _split_pipe
+from .browser_config_row import BrowserConfigRow
 from .fingerprint_profile_row import FingerprintProfileRow
-from .proxy_config_row import ProxyConfigRow, ProxyTestSignals, ProxyTestWorker
-from .proxy_csv import _csv_value, _normalize_csv_protocol, parse_proxy_csv
+from .proxy_config_row import ProxyConfigRow
+from .proxy_csv import parse_proxy_csv
 
 logger = logging.getLogger(__name__)
 
@@ -96,8 +95,12 @@ class AppSettingsDialog(QDialog):
         self.general_button.clicked.connect(lambda: self.stack.setCurrentWidget(self.general_page))
         self.browsers_button.clicked.connect(lambda: self.stack.setCurrentWidget(self.browser_page))
         self.proxies_button.clicked.connect(lambda: self.stack.setCurrentWidget(self.proxy_page))
-        self.fingerprints_button.clicked.connect(lambda: self.stack.setCurrentWidget(self.fingerprint_page))
-        self.language_button.clicked.connect(lambda: self.stack.setCurrentWidget(self.language_page))
+        self.fingerprints_button.clicked.connect(
+            lambda: self.stack.setCurrentWidget(self.fingerprint_page)
+        )
+        self.language_button.clicked.connect(
+            lambda: self.stack.setCurrentWidget(self.language_page)
+        )
         buttons.accepted.connect(self.save)
         buttons.rejected.connect(self.reject)
 
@@ -257,7 +260,9 @@ class AppSettingsDialog(QDialog):
         self.language_combo.setMaxVisibleItems(8)
         self.language_combo.setMinimumContentsLength(18)
         self.language_combo.view().setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        self.language_combo.view().setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        self.language_combo.view().setVerticalScrollMode(
+            QAbstractItemView.ScrollMode.ScrollPerPixel
+        )
         self.language_combo.view().setUniformItemSizes(True)
         self.language_combo.view().setMinimumHeight(216)
         self.language_combo.view().setMaximumHeight(216)
@@ -289,7 +294,9 @@ class AppSettingsDialog(QDialog):
         discovered = self.app_service.discover_installed_browsers()
         if not discovered:
             logger.warning("Browser scan completed without detected browsers")
-            QMessageBox.information(self, _("Find browsers"), _("No browsers were detected automatically."))
+            QMessageBox.information(
+                self, _("Find browsers"), _("No browsers were detected automatically.")
+            )
             return
 
         existing_paths = {row.to_config().executable_path for row in self.browser_rows}
@@ -306,7 +313,9 @@ class AppSettingsDialog(QDialog):
             existing_keys.add(config.key)
             added += 1
 
-        QMessageBox.information(self, _("Find browsers"), _("Browsers added: {count}").format(count=added))
+        QMessageBox.information(
+            self, _("Find browsers"), _("Browsers added: {count}").format(count=added)
+        )
         logger.info("Browser scan added %s browser row(s)", added)
 
     def add_manual_browser(self) -> None:
@@ -476,7 +485,9 @@ class AppSettingsDialog(QDialog):
                 config = row.to_config()
                 if not config.display_name.strip():
                     raise ValueError(_("Every browser must have a name."))
-                config.key = config.key.strip() or self.app_service.make_browser_key(config.display_name)
+                config.key = config.key.strip() or self.app_service.make_browser_key(
+                    config.display_name
+                )
                 self.app_service.save_browser_config(config)
 
             for row in self.proxy_rows:
@@ -525,7 +536,7 @@ class AppSettingsDialog(QDialog):
         self.browser_rows.append(row)
         self.browser_rows_layout.addWidget(row)
 
-    def _delete_browser_row(self, row: "BrowserConfigRow") -> None:
+    def _delete_browser_row(self, row: BrowserConfigRow) -> None:
         if not self._confirm_delete_if_needed(
             _("Delete browser"),
             _("Are you sure you want to delete this browser?"),
@@ -538,7 +549,7 @@ class AppSettingsDialog(QDialog):
         self.browser_rows_layout.removeWidget(row)
         row.deleteLater()
 
-    def _add_proxy_row(self, proxy: ProxyConfig) -> "ProxyConfigRow":
+    def _add_proxy_row(self, proxy: ProxyConfig) -> ProxyConfigRow:
         row = ProxyConfigRow(proxy, self.app_service)
         row.delete_requested.connect(lambda widget=row: self._delete_proxy_row(widget))
         row.test_state_changed.connect(self._update_proxy_cleanup_buttons)
@@ -548,7 +559,7 @@ class AppSettingsDialog(QDialog):
         self._update_proxy_cleanup_buttons()
         return row
 
-    def _delete_proxy_row(self, row: "ProxyConfigRow") -> None:
+    def _delete_proxy_row(self, row: ProxyConfigRow) -> None:
         if not self._confirm_delete_if_needed(
             _("Delete proxy"),
             _("Are you sure you want to delete this proxy?"),
@@ -564,14 +575,14 @@ class AppSettingsDialog(QDialog):
         self._renumber_proxy_rows()
         self._update_proxy_cleanup_buttons()
 
-    def _add_fingerprint_row(self, profile: FingerprintProfile) -> "FingerprintProfileRow":
+    def _add_fingerprint_row(self, profile: FingerprintProfile) -> FingerprintProfileRow:
         row = FingerprintProfileRow(profile)
         row.delete_requested.connect(lambda widget=row: self._delete_fingerprint_row(widget))
         self.fingerprint_rows.append(row)
         self.fingerprint_rows_layout.addWidget(row)
         return row
 
-    def _delete_fingerprint_row(self, row: "FingerprintProfileRow") -> None:
+    def _delete_fingerprint_row(self, row: FingerprintProfileRow) -> None:
         if not self._confirm_delete_if_needed(
             _("Delete fingerprint"),
             _("Are you sure you want to delete this fingerprint?"),
@@ -605,7 +616,7 @@ class AppSettingsDialog(QDialog):
             if row in self.fingerprint_rows:
                 self._delete_fingerprint_row_without_confirmation(row)
 
-    def _delete_fingerprint_row_without_confirmation(self, row: "FingerprintProfileRow") -> None:
+    def _delete_fingerprint_row_without_confirmation(self, row: FingerprintProfileRow) -> None:
         profile = row.to_profile()
         if profile.id is not None:
             self.deleted_fingerprint_ids.append(profile.id)
@@ -613,12 +624,12 @@ class AppSettingsDialog(QDialog):
         self.fingerprint_rows_layout.removeWidget(row)
         row.deleteLater()
 
-    def _delete_proxy_rows(self, rows: list["ProxyConfigRow"]) -> None:
+    def _delete_proxy_rows(self, rows: list[ProxyConfigRow]) -> None:
         for row in list(rows):
             if row in self.proxy_rows:
                 self._delete_proxy_row_without_confirmation(row)
 
-    def _delete_proxy_row_without_confirmation(self, row: "ProxyConfigRow") -> None:
+    def _delete_proxy_row_without_confirmation(self, row: ProxyConfigRow) -> None:
         row.mark_deleted()
         proxy = row.to_config()
         if proxy.id is not None:

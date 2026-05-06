@@ -92,8 +92,7 @@ class SessionRowWidget(QWidget):
         button.setToolTip(tooltip)
         button.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         button.setFixedSize(32, 32)
-        button.setStyleSheet(
-            f"""
+        button.setStyleSheet(f"""
             QPushButton {{
                 color: {color};
                 border: 1px solid #374151;
@@ -109,8 +108,7 @@ class SessionRowWidget(QWidget):
             QPushButton:pressed {{
                 background: #030712;
             }}
-            """
-        )
+            """)
         return button
 
     def to_session(self) -> SessionEntry:

@@ -8,9 +8,7 @@ from models.fingerprint_profile import FingerprintProfile
 
 _RANDOM = SystemRandom()
 
-FINGERPRINT_PRESETS: tuple[FingerprintPresetConfig, ...] = (
-    APP_CONFIG.fingerprint_generation.presets
-)
+FINGERPRINT_PRESETS: tuple[FingerprintPresetConfig, ...] = APP_CONFIG.fingerprint_generation.presets
 
 
 def generate_fingerprint_config() -> FingerprintConfig:

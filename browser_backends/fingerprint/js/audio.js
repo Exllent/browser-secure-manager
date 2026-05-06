@@ -14,7 +14,7 @@ const secureBrowserWeakAudioNoise = (data) => {
 
 if (window.AudioBuffer && AudioBuffer.prototype.getChannelData
     && !AudioBuffer.prototype.__secureBrowserAudioBufferPatched) {
-    Object.defineProperty(AudioBuffer.prototype, '__secureBrowserAudioBufferPatched', { value: true });
+    Object.defineProperty(AudioBuffer.prototype, '__secureBrowserAudioBufferPatched', {value: true});
     const originalGetChannelData = AudioBuffer.prototype.getChannelData;
     AudioBuffer.prototype.getChannelData = new Proxy(originalGetChannelData, {
         apply(target, thisArg, args) {
@@ -25,7 +25,7 @@ if (window.AudioBuffer && AudioBuffer.prototype.getChannelData
 
 const patchAnalyserPrototype = (prototype) => {
     if (!prototype || prototype.__secureBrowserAnalyserPatched) return;
-    Object.defineProperty(prototype, '__secureBrowserAnalyserPatched', { value: true });
+    Object.defineProperty(prototype, '__secureBrowserAnalyserPatched', {value: true});
     for (const methodName of ['getFloatFrequencyData', 'getFloatTimeDomainData']) {
         const originalMethod = prototype[methodName];
         if (!originalMethod) continue;

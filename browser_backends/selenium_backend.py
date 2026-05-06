@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import logging
 import itertools
 import json
+import logging
 import threading
 import urllib.request
 from pathlib import Path
@@ -18,13 +18,13 @@ from models.fingerprint_config import FingerprintConfig
 from models.proxy_config import ProxyConfig
 from models.session_entry import SessionEntry
 
-from .chromium_bookmarks import ensure_chromium_default_bookmarks
 from .browser_discovery import (
     _browser_binary_from_config,
     _chromium_candidates,
     _chromium_version_keywords,
     discover_installed_browsers,
 )
+from .chromium_bookmarks import ensure_chromium_default_bookmarks
 from .chromium_extensions import (
     _configure_default_extensions,
     _webrtc_leak_prevent_extension_path,
@@ -92,7 +92,9 @@ class SeleniumBrowserBackend:
 
         self._drivers[session.id] = driver
         if fingerprint_config is not None:
-            enforcer = _FingerprintTargetEnforcer(driver, fingerprint_config, session.url, session.id)
+            enforcer = _FingerprintTargetEnforcer(
+                driver, fingerprint_config, session.url, session.id
+            )
             enforcer.start()
             self._fingerprint_enforcers[session.id] = enforcer
         logger.info("Navigating session %s to %s", session.id, session.url)
@@ -380,16 +382,14 @@ def _user_agent_override_payload(config: FingerprintConfig) -> dict[str, Any] | 
 
 def _log_fingerprint_runtime_state(driver: webdriver.Chrome, session_id: int | None) -> None:
     try:
-        state = driver.execute_script(
-            """
+        state = driver.execute_script("""
             return {
                 marker: globalThis.__secureBrowserFingerprintPreloadApplied === true,
                 platform: navigator.platform,
                 webdriver: navigator.webdriver,
                 userAgent: navigator.userAgent
             };
-            """
-        )
+            """)
     except Exception:
         logger.exception("Could not verify fingerprint runtime state for session %s", session_id)
         return

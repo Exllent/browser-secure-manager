@@ -3,7 +3,15 @@ from __future__ import annotations
 import re
 
 from PySide6.QtCore import Signal
-from PySide6.QtWidgets import QCheckBox, QComboBox, QFileDialog, QHBoxLayout, QLineEdit, QPushButton, QWidget
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QFileDialog,
+    QHBoxLayout,
+    QLineEdit,
+    QPushButton,
+    QWidget,
+)
 
 from app.i18n import _
 from app_config import APP_CONFIG
@@ -72,7 +80,6 @@ class BrowserConfigRow(QWidget):
             executable_path=self.path_edit.text().strip(),
             enabled=self.enabled_check.isChecked(),
         )
-
 
 
 def _make_browser_key(display_name: str) -> str:

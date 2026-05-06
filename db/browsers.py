@@ -12,14 +12,12 @@ from .mappers import row_to_browser_config
 def get_browser_configs(*, enabled_only: bool = False) -> list[BrowserConfig]:
     where = "WHERE enabled = 1" if enabled_only else ""
     with config.connect() as connection:
-        rows = connection.execute(
-            f"""
+        rows = connection.execute(f"""
             SELECT id, key, display_name, browser_type, executable_path, enabled
             FROM browser_configs
             {where}
             ORDER BY display_name COLLATE NOCASE
-            """
-        ).fetchall()
+            """).fetchall()
     return [row_to_browser_config(row) for row in rows]
 
 
@@ -49,11 +47,9 @@ def upsert_browser_config(
         if browser_config.id is None:
             active_connection.execute(
                 """
-                INSERT INTO browser_configs (
-                    key, display_name, browser_type, executable_path, enabled
-                )
-                VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT(key) DO UPDATE SET
+                INSERT INTO browser_configs (key, display_name, browser_type, executable_path, enabled)
+                VALUES (?, ?, ?, ?, ?) ON CONFLICT(key) DO
+                UPDATE SET
                     display_name = excluded.display_name,
                     browser_type = excluded.browser_type,
                     executable_path = excluded.executable_path,
@@ -71,11 +67,11 @@ def upsert_browser_config(
             active_connection.execute(
                 """
                 UPDATE browser_configs
-                SET key = ?,
-                    display_name = ?,
-                    browser_type = ?,
+                SET key             = ?,
+                    display_name    = ?,
+                    browser_type    = ?,
                     executable_path = ?,
-                    enabled = ?
+                    enabled         = ?
                 WHERE id = ?
                 """,
                 (

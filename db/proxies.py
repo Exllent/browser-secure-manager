@@ -11,14 +11,12 @@ from .mappers import row_to_proxy_config
 def get_proxy_configs(*, enabled_only: bool = False) -> list[ProxyConfig]:
     where = "WHERE enabled = 1" if enabled_only else ""
     with config.connect() as connection:
-        rows = connection.execute(
-            f"""
+        rows = connection.execute(f"""
             SELECT id, label, host, port, proxy_type, username, password, enabled
             FROM proxy_configs
             {where}
             ORDER BY label COLLATE NOCASE, host COLLATE NOCASE, port
-            """
-        ).fetchall()
+            """).fetchall()
     return [row_to_proxy_config(row) for row in rows]
 
 
@@ -28,7 +26,14 @@ def get_proxy_config(proxy_id: int | None) -> ProxyConfig | None:
     with config.connect() as connection:
         row = connection.execute(
             """
-            SELECT id, label, host, port, proxy_type, username, password, enabled
+            SELECT id,
+                   label,
+                   host,
+                   port,
+                   proxy_type,
+                   username,
+                   password,
+                   enabled
             FROM proxy_configs
             WHERE id = ?
             """,
@@ -49,9 +54,7 @@ def upsert_proxy_config(
         if proxy.id is None:
             cursor = active_connection.execute(
                 """
-                INSERT INTO proxy_configs (
-                    label, host, port, proxy_type, username, password, enabled
-                )
+                INSERT INTO proxy_configs (label, host, port, proxy_type, username, password, enabled)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 _proxy_values(proxy),
@@ -61,13 +64,13 @@ def upsert_proxy_config(
             active_connection.execute(
                 """
                 UPDATE proxy_configs
-                SET label = ?,
-                    host = ?,
-                    port = ?,
+                SET label      = ?,
+                    host       = ?,
+                    port       = ?,
                     proxy_type = ?,
-                    username = ?,
-                    password = ?,
-                    enabled = ?
+                    username   = ?,
+                    password   = ?,
+                    enabled    = ?
                 WHERE id = ?
                 """,
                 (*_proxy_values(proxy), proxy.id),

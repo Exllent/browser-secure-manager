@@ -12,14 +12,12 @@ from .mappers import row_to_fingerprint_profile
 def get_fingerprint_profiles(*, enabled_only: bool = False) -> list[FingerprintProfile]:
     where = "WHERE enabled = 1" if enabled_only else ""
     with config.connect() as connection:
-        rows = connection.execute(
-            f"""
+        rows = connection.execute(f"""
             SELECT id, name, config_json, enabled
             FROM fingerprint_profiles
             {where}
             ORDER BY name COLLATE NOCASE, id
-            """
-        ).fetchall()
+            """).fetchall()
     return [row_to_fingerprint_profile(row) for row in rows]
 
 
@@ -66,9 +64,9 @@ def upsert_fingerprint_profile(
             active_connection.execute(
                 """
                 UPDATE fingerprint_profiles
-                SET name = ?,
+                SET name        = ?,
                     config_json = ?,
-                    enabled = ?
+                    enabled     = ?
                 WHERE id = ?
                 """,
                 (name, config_json, int(profile.enabled), profile.id),

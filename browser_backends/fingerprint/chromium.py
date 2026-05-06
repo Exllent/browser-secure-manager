@@ -12,9 +12,8 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options as ChromeOptions
 
 from app_config import APP_CONFIG
-from models.fingerprint_config import FingerprintConfig
-
 from browser_backends.chromium_extensions import _add_chromium_extension
+from models.fingerprint_config import FingerprintConfig
 
 from .audio import _build_audio_patch
 from .canvas import _build_canvas_patch
@@ -57,7 +56,9 @@ def _configure_chromium_fingerprint_extension(
 ) -> None:
     script = _build_chromium_fingerprint_script(config)
     if not script:
-        logger.info("Fingerprint extension was not created because no fingerprint script was generated")
+        logger.info(
+            "Fingerprint extension was not created because no fingerprint script was generated"
+        )
         return
 
     extension_dir = _fingerprint_extension_dir(profile_dir, script)

@@ -7,13 +7,12 @@ from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
 
+from app_config import APP_CONFIG
 from models.browser_config import BrowserConfig
 from models.fingerprint_config import FingerprintConfig
 from models.fingerprint_profile import FingerprintProfile
 from models.proxy_config import ProxyConfig
 from models.session_entry import SessionEntry
-
-from app_config import APP_CONFIG
 
 from . import config
 from .browsers import get_browser_config, get_browser_configs, make_browser_key
@@ -98,8 +97,7 @@ def _full_backup_data() -> dict[str, object]:
         ],
         "proxy_configs": [_proxy_config_to_backup_dict(proxy) for proxy in get_proxy_configs()],
         "fingerprint_profiles": [
-            _fingerprint_profile_to_backup_dict(profile)
-            for profile in get_fingerprint_profiles()
+            _fingerprint_profile_to_backup_dict(profile) for profile in get_fingerprint_profiles()
         ],
         "app_settings": get_all_settings(),
     }
@@ -233,11 +231,11 @@ def _import_session_backup_data(data: dict[str, object]) -> dict[str, int]:
 
         session_data = dict(session_data)
         session_data["id"] = None
-        session_data["proxy_id"] = proxy_id_map.get(old_proxy_id) if old_proxy_id is not None else None
+        session_data["proxy_id"] = (
+            proxy_id_map.get(old_proxy_id) if old_proxy_id is not None else None
+        )
         session_data["fingerprint_id"] = (
-            fingerprint_id_map.get(old_fingerprint_id)
-            if old_fingerprint_id is not None
-            else None
+            fingerprint_id_map.get(old_fingerprint_id) if old_fingerprint_id is not None else None
         )
         session_data["status"] = APP_CONFIG.storage.default_status
         _insert_session_from_backup(connection, session_data)
@@ -260,11 +258,9 @@ def _insert_session_from_backup(
     if session_id is None:
         cursor = connection.execute(
             """
-            INSERT INTO sessions (
-                name, url, browser, profile_path, proxy_id, fingerprint_id,
-                proxy_label, custom_user_agent, notes,
-                window_width, window_height, status
-            )
+            INSERT INTO sessions (name, url, browser, profile_path, proxy_id, fingerprint_id,
+                                  proxy_label, custom_user_agent, notes,
+                                  window_width, window_height, status)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             _session_insert_values(data, profile_path),
@@ -273,11 +269,9 @@ def _insert_session_from_backup(
     else:
         connection.execute(
             """
-            INSERT INTO sessions (
-                id, name, url, browser, profile_path, proxy_id, fingerprint_id,
-                proxy_label, custom_user_agent, notes,
-                window_width, window_height, status
-            )
+            INSERT INTO sessions (id, name, url, browser, profile_path, proxy_id, fingerprint_id,
+                                  proxy_label, custom_user_agent, notes,
+                                  window_width, window_height, status)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (session_id, *_session_insert_values(data, profile_path)),
@@ -333,8 +327,8 @@ def _upsert_browser_config_from_backup(
     connection.execute(
         """
         INSERT INTO browser_configs (key, display_name, browser_type, executable_path, enabled)
-        VALUES (?, ?, ?, ?, ?)
-        ON CONFLICT(key) DO UPDATE SET
+        VALUES (?, ?, ?, ?, ?) ON CONFLICT(key) DO
+        UPDATE SET
             display_name = excluded.display_name,
             browser_type = excluded.browser_type,
             executable_path = excluded.executable_path,
@@ -373,8 +367,13 @@ def _insert_proxy_config_from_backup(
 def _upsert_proxy_from_backup(connection: sqlite3.Connection, data: dict[str, object]) -> int:
     row = connection.execute(
         """
-        SELECT id FROM proxy_configs
-        WHERE host = ? AND port = ? AND proxy_type = ? AND username = ? AND password = ?
+        SELECT id
+        FROM proxy_configs
+        WHERE host = ?
+          AND port = ?
+          AND proxy_type = ?
+          AND username = ?
+          AND password = ?
         """,
         (
             str(data.get("host") or "").strip(),
@@ -436,8 +435,10 @@ def _upsert_fingerprint_from_backup(
     config_json = _fingerprint_config_json_from_backup(data)
     row = connection.execute(
         """
-        SELECT id FROM fingerprint_profiles
-        WHERE name = ? AND config_json = ?
+        SELECT id
+        FROM fingerprint_profiles
+        WHERE name = ?
+          AND config_json = ?
         """,
         (name, config_json),
     ).fetchone()

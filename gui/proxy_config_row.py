@@ -1,7 +1,15 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, Signal, Slot
-from PySide6.QtWidgets import QCheckBox, QComboBox, QHBoxLayout, QLineEdit, QPushButton, QSpinBox, QWidget
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QHBoxLayout,
+    QLineEdit,
+    QPushButton,
+    QSpinBox,
+    QWidget,
+)
 
 from app.app_service import AppService
 from app.i18n import _
@@ -10,7 +18,6 @@ from models.proxy_config import ProxyConfig
 
 class ProxyTestSignals(QObject):
     finished = Signal(int, object)
-
 
 
 class ProxyTestWorker(QRunnable):
@@ -25,7 +32,6 @@ class ProxyTestWorker(QRunnable):
     def run(self) -> None:
         result = self.app_service.test_proxy(self.proxy)
         self.signals.finished.emit(self.generation, result)
-
 
 
 class ProxyConfigRow(QWidget):
@@ -111,7 +117,6 @@ class ProxyConfigRow(QWidget):
 
     def test_proxy(self) -> None:
         host = self.host_edit.text().strip()
-        port = self.port_spin.value()
         if not host:
             self._last_test_ok = False
             self._last_ping_ms = None
@@ -173,7 +178,11 @@ class ProxyConfigRow(QWidget):
         return self._last_test_ok is False
 
     def has_ping_greater_than(self, threshold_ms: int) -> bool:
-        return self._last_test_ok is True and self._last_ping_ms is not None and self._last_ping_ms > threshold_ms
+        return (
+            self._last_test_ok is True
+            and self._last_ping_ms is not None
+            and self._last_ping_ms > threshold_ms
+        )
 
     def is_test_running(self) -> bool:
         return self._test_running

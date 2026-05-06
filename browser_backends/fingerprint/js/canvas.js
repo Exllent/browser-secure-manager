@@ -75,7 +75,7 @@ const secureBrowserPatchCanvasImageData = (
 
 const patchCanvas2DPrototype = (prototype, markerProperty) => {
     if (!prototype || prototype[markerProperty] || !prototype.getImageData) return;
-    Object.defineProperty(prototype, markerProperty, { value: true });
+    Object.defineProperty(prototype, markerProperty, {value: true});
     const originalGetImageData = prototype.getImageData;
     prototype.getImageData = new Proxy(originalGetImageData, {
         apply(target, thisArg, args) {
@@ -123,14 +123,15 @@ const secureBrowserStableHTMLCanvasForExport = (canvas) => {
 };
 
 if (!HTMLCanvasElement.prototype.__secureBrowserCanvasExportPatched) {
-    Object.defineProperty(HTMLCanvasElement.prototype, '__secureBrowserCanvasExportPatched', { value: true });
+    Object.defineProperty(HTMLCanvasElement.prototype, '__secureBrowserCanvasExportPatched', {value: true});
     const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
     HTMLCanvasElement.prototype.toDataURL = new Proxy(originalToDataURL, {
         apply(target, thisArg, args) {
             try {
                 const clone = secureBrowserStableHTMLCanvasForExport(thisArg);
                 if (clone) return Reflect.apply(target, clone, args);
-            } catch (error) {}
+            } catch (error) {
+            }
             return Reflect.apply(target, thisArg, args);
         }
     });
@@ -138,13 +139,14 @@ if (!HTMLCanvasElement.prototype.__secureBrowserCanvasExportPatched) {
 
 const originalToBlob = HTMLCanvasElement.prototype.toBlob;
 if (originalToBlob && !HTMLCanvasElement.prototype.__secureBrowserCanvasBlobPatched) {
-    Object.defineProperty(HTMLCanvasElement.prototype, '__secureBrowserCanvasBlobPatched', { value: true });
+    Object.defineProperty(HTMLCanvasElement.prototype, '__secureBrowserCanvasBlobPatched', {value: true});
     HTMLCanvasElement.prototype.toBlob = new Proxy(originalToBlob, {
         apply(target, thisArg, args) {
             try {
                 const clone = secureBrowserStableHTMLCanvasForExport(thisArg);
                 if (clone) return Reflect.apply(target, clone, args);
-            } catch (error) {}
+            } catch (error) {
+            }
             return Reflect.apply(target, thisArg, args);
         }
     });
@@ -157,7 +159,7 @@ if (window.OffscreenCanvas && OffscreenCanvas.prototype.convertToBlob) {
         if (!cloneContext) return null;
         Reflect.apply(
             originalOffscreen2DPutImageData
-                || OffscreenCanvasRenderingContext2D.prototype.putImageData,
+            || OffscreenCanvasRenderingContext2D.prototype.putImageData,
             cloneContext,
             [secureBrowserStableImageData(cloneContext, clone.width, clone.height, 'offscreen-export'), 0, 0]
         );
@@ -165,13 +167,14 @@ if (window.OffscreenCanvas && OffscreenCanvas.prototype.convertToBlob) {
     };
     const originalCanvasConvertToBlob = OffscreenCanvas.prototype.convertToBlob;
     if (!OffscreenCanvas.prototype.__secureBrowserCanvasConvertToBlobPatched) {
-        Object.defineProperty(OffscreenCanvas.prototype, '__secureBrowserCanvasConvertToBlobPatched', { value: true });
+        Object.defineProperty(OffscreenCanvas.prototype, '__secureBrowserCanvasConvertToBlobPatched', {value: true});
         OffscreenCanvas.prototype.convertToBlob = new Proxy(originalCanvasConvertToBlob, {
             apply(target, thisArg, args) {
                 try {
                     const clone = secureBrowserStableOffscreenCanvasForExport(thisArg);
                     if (clone) return Reflect.apply(target, clone, args);
-                } catch (error) {}
+                } catch (error) {
+                }
                 return Reflect.apply(target, thisArg, args);
             }
         });

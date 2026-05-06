@@ -47,7 +47,9 @@ class FingerprintConfigDialog(QDialog):
         self.canvas_mode_combo = QComboBox()
         for mode in APP_CONFIG.fingerprint_validation.canvas_modes:
             self.canvas_mode_combo.addItem(mode, mode)
-        self.canvas_mode_combo.setCurrentIndex(max(self.canvas_mode_combo.findData(config.canvas_mode), 0))
+        self.canvas_mode_combo.setCurrentIndex(
+            max(self.canvas_mode_combo.findData(config.canvas_mode), 0)
+        )
 
         self.canvas_noise_spin = QDoubleSpinBox()
         self.canvas_noise_spin.setRange(
@@ -88,7 +90,9 @@ class FingerprintConfigDialog(QDialog):
         self.webrtc_mode_combo = QComboBox()
         for mode in APP_CONFIG.fingerprint_validation.webrtc_modes:
             self.webrtc_mode_combo.addItem(mode, mode)
-        self.webrtc_mode_combo.setCurrentIndex(max(self.webrtc_mode_combo.findData(config.webrtc_mode), 0))
+        self.webrtc_mode_combo.setCurrentIndex(
+            max(self.webrtc_mode_combo.findData(config.webrtc_mode), 0)
+        )
 
         self.hardware_spin = QSpinBox()
         self.hardware_spin.setRange(
@@ -102,7 +106,9 @@ class FingerprintConfigDialog(QDialog):
         self.device_memory_combo.addItem(_("Browser default"), None)
         for value in APP_CONFIG.fingerprint_validation.device_memory_values:
             self.device_memory_combo.addItem(str(value), value)
-        self.device_memory_combo.setCurrentIndex(max(self.device_memory_combo.findData(config.device_memory), 0))
+        self.device_memory_combo.setCurrentIndex(
+            max(self.device_memory_combo.findData(config.device_memory), 0)
+        )
 
         self.platform_combo = QComboBox()
         self.platform_combo.addItem(_("Browser default"), None)
@@ -114,7 +120,9 @@ class FingerprintConfigDialog(QDialog):
         self.tls_profile_combo.addItem(_("No TLS profile"), None)
         for profile_name in APP_CONFIG.fingerprint_validation.tls_profiles:
             self.tls_profile_combo.addItem(profile_name, profile_name)
-        self.tls_profile_combo.setCurrentIndex(max(self.tls_profile_combo.findData(config.tls_profile), 0))
+        self.tls_profile_combo.setCurrentIndex(
+            max(self.tls_profile_combo.findData(config.tls_profile), 0)
+        )
 
         self.spoof_touch_check = QCheckBox(_("Spoof touch support"))
         self.spoof_touch_check.setChecked(config.spoof_touch_support)
@@ -271,10 +279,8 @@ class FingerprintConfigDialog(QDialog):
         self.accept()
 
 
-
 def _split_csv(value: str) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
-
 
 
 def _split_pipe(value: str) -> list[str]:
