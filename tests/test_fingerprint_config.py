@@ -49,7 +49,9 @@ class FingerprintConfigTest(unittest.TestCase):
         config = FingerprintConfig(
             hide_automation="yes",  # type: ignore[arg-type]
             spoof_feature_detection="yes",  # type: ignore[arg-type]
+            spoof_media_devices="yes",  # type: ignore[arg-type]
             global_privacy_control="yes",  # type: ignore[arg-type]
+            media_devices="camera",  # type: ignore[arg-type]
             canvas_noise_level="high",  # type: ignore[arg-type]
             canvas_noise_seed="seed",  # type: ignore[arg-type]
             font_spoof_count=1.5,  # type: ignore[arg-type]
@@ -70,7 +72,9 @@ class FingerprintConfigTest(unittest.TestCase):
 
         self.assertIn("hide_automation must be a boolean", errors)
         self.assertIn("spoof_feature_detection must be a boolean", errors)
+        self.assertIn("spoof_media_devices must be a boolean", errors)
         self.assertIn("global_privacy_control must be a boolean", errors)
+        self.assertIn("media_devices must be a list", errors)
         self.assertIn("canvas_noise_level must be a number", errors)
         self.assertIn("canvas_noise_seed must be an integer", errors)
         self.assertIn("font_spoof_count must be an integer", errors)
@@ -95,6 +99,15 @@ class FingerprintConfigTest(unittest.TestCase):
             client_hints_architecture="mips",
             client_hints_bitness="128",
             do_not_track="maybe",
+            media_devices=[
+                {
+                    "kind": "sensor",
+                    "label": "Device",
+                    "deviceId": "device",
+                    "groupId": "group",
+                    "extra": "value",
+                }
+            ],
             connection_effective_type="5g",
             connection_type="fiber",
         )
@@ -108,6 +121,8 @@ class FingerprintConfigTest(unittest.TestCase):
         self.assertIn("Invalid client_hints_architecture: mips", errors)
         self.assertIn("Invalid client_hints_bitness: 128", errors)
         self.assertIn("Invalid do_not_track: maybe", errors)
+        self.assertIn("media_devices item 1 has unknown keys: extra", errors)
+        self.assertIn("media_devices item 1 has invalid kind: sensor", errors)
         self.assertIn("Invalid connection_effective_type: 5g", errors)
         self.assertIn("Invalid connection_type: fiber", errors)
 
@@ -176,6 +191,8 @@ class FingerprintConfigTest(unittest.TestCase):
         self.assertEqual(data["canvas_mode"], "noise")
         self.assertIsNone(data["canvas_noise_seed"])
         self.assertTrue(data["spoof_feature_detection"])
+        self.assertTrue(data["spoof_media_devices"])
+        self.assertEqual(data["media_devices"], [])
         self.assertIsNone(data["do_not_track"])
         self.assertFalse(data["global_privacy_control"])
         self.assertFalse(data["hide_adblock_signs"])

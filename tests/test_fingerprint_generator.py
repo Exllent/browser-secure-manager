@@ -19,6 +19,8 @@ class FingerprintGeneratorTest(unittest.TestCase):
             self.assertEqual(config.canvas_mode, "fixed")
             self.assertIsNotNone(config.screen_width)
             self.assertIsNotNone(config.screen_height)
+            self.assertTrue(config.spoof_media_devices)
+            self.assertEqual(len(config.media_devices), 3)
             self.assertIsNotNone(config.connection_effective_type)
             self.assertEqual(config.validate(), [])
 
@@ -45,6 +47,7 @@ class FingerprintGeneratorTest(unittest.TestCase):
         self.assertIsNone(first.canvas_noise_seed)
         self.assertIsNone(second.canvas_noise_seed)
         self.assertEqual(first.canvas_noise_level, second.canvas_noise_level)
+        self.assertEqual(first.media_devices, second.media_devices)
 
     def test_generated_profile_uses_requested_name(self) -> None:
         profile = generate_fingerprint_profile("Generated fingerprint")

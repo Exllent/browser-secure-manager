@@ -324,6 +324,7 @@ class FingerprintValidationConfig:
     client_hint_bitness_values: tuple[str, ...] = ("32", "64")
     connection_effective_types: tuple[str, ...] = ("slow-2g", "2g", "3g", "4g")
     do_not_track_values: tuple[str, ...] = ("0", "1")
+    media_device_kinds: tuple[str, ...] = ("audioinput", "audiooutput", "videoinput")
     connection_types: tuple[str, ...] = (
         "bluetooth",
         "cellular",
@@ -355,6 +356,7 @@ class FingerprintValidationConfig:
         "spoof_connection",
         "spoof_permissions",
         "spoof_feature_detection",
+        "spoof_media_devices",
         "global_privacy_control",
         "hide_adblock_signs",
         "spoof_battery",

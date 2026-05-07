@@ -22,6 +22,7 @@ VALID_CLIENT_HINT_BITNESS_VALUES = set(_VALIDATION_CONFIG.client_hint_bitness_va
 VALID_CONNECTION_EFFECTIVE_TYPES = set(_VALIDATION_CONFIG.connection_effective_types)
 VALID_CONNECTION_TYPES = set(_VALIDATION_CONFIG.connection_types)
 VALID_DO_NOT_TRACK_VALUES = set(_VALIDATION_CONFIG.do_not_track_values)
+VALID_MEDIA_DEVICE_KINDS = set(_VALIDATION_CONFIG.media_device_kinds)
 TIMEZONE_LANGUAGE_PREFIXES = dict(_VALIDATION_CONFIG.timezone_language_prefixes)
 BOOLEAN_FIELDS = _VALIDATION_CONFIG.boolean_fields
 LIST_FIELDS = _VALIDATION_CONFIG.list_fields
@@ -91,6 +92,8 @@ class FingerprintConfig:
     spoof_connection: bool = True  # navigator.connection
     spoof_permissions: bool = True  # navigator.permissions.query
     spoof_feature_detection: bool = True  # стабильный профиль feature-detection API
+    spoof_media_devices: bool = True  # navigator.mediaDevices.enumerateDevices()
+    media_devices: list[dict[str, str]] = field(default_factory=list)
     do_not_track: str | None = None
     global_privacy_control: bool = False
     connection_downlink: float | None = None
@@ -118,6 +121,8 @@ class FingerprintConfig:
         for field_name in LIST_FIELDS:
             if values.get(field_name) is None:
                 values[field_name] = []
+        if values.get("media_devices") is None:
+            values["media_devices"] = []
 
         if isinstance(values.get("geolocation"), list | tuple):
             values["geolocation"] = tuple(values["geolocation"])
@@ -240,6 +245,7 @@ class FingerprintConfig:
         self._validate_screen(errors)
         self._validate_connection(errors)
         self._validate_battery(errors)
+        self._validate_media_devices(errors)
 
         for field_name in LIST_FIELDS:
             self._validate_str_list(field_name, getattr(self, field_name), errors)
@@ -395,6 +401,31 @@ class FingerprintConfig:
                 _VALIDATION_CONFIG.battery_time_min <= value <= _VALIDATION_CONFIG.battery_time_max
             ):
                 errors.append(f"{field_name} must be between 0 and 86400")
+
+    def _validate_media_devices(self, errors: list[str]) -> None:
+        if not isinstance(self.media_devices, list):
+            errors.append("media_devices must be a list")
+            return
+
+        allowed_keys = {"kind", "label", "deviceId", "groupId"}
+        for index, device in enumerate(self.media_devices, start=1):
+            if not isinstance(device, dict):
+                errors.append(f"media_devices item {index} must be an object")
+                continue
+
+            unknown_keys = set(device) - allowed_keys
+            if unknown_keys:
+                keys = ", ".join(sorted(unknown_keys))
+                errors.append(f"media_devices item {index} has unknown keys: {keys}")
+
+            kind = device.get("kind")
+            if not isinstance(kind, str) or kind not in VALID_MEDIA_DEVICE_KINDS:
+                errors.append(f"media_devices item {index} has invalid kind: {kind}")
+
+            for key in ("label", "deviceId", "groupId"):
+                value = device.get(key, "")
+                if not isinstance(value, str):
+                    errors.append(f"media_devices item {index} {key} must be a string")
 
     def _validate_consistency(self, errors: list[str]) -> None:
         if not self.user_agent:

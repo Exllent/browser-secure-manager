@@ -55,6 +55,8 @@ def generate_fingerprint_config(
         spoof_connection=True,
         spoof_permissions=True,
         spoof_feature_detection=True,
+        spoof_media_devices=True,
+        media_devices=_default_media_devices(selected_preset),
         do_not_track=None,
         global_privacy_control=False,
         connection_downlink=selected_preset.connection_downlink,
@@ -85,6 +87,54 @@ def generate_fingerprint_profile(name: str | None = None) -> FingerprintProfile:
 def _device_canvas_noise_level(preset: FingerprintPresetConfig) -> float:
     choices = APP_CONFIG.fingerprint_generation.canvas_noise_choices
     return choices[_device_canvas_seed(preset) % len(choices)]
+
+
+def _default_media_devices(preset: FingerprintPresetConfig) -> list[dict[str, str]]:
+    if preset.platform == "MacIntel":
+        labels = (
+            ("audioinput", "MacBook Pro Microphone"),
+            ("videoinput", "FaceTime HD Camera"),
+            ("audiooutput", "MacBook Pro Speakers"),
+        )
+    elif preset.platform.startswith("Win"):
+        labels = (
+            ("audioinput", "Microphone Array (Realtek(R) Audio)"),
+            ("videoinput", "Integrated Camera"),
+            ("audiooutput", "Speakers (Realtek(R) Audio)"),
+        )
+    else:
+        labels = (
+            ("audioinput", "Built-in Audio Analog Stereo"),
+            ("videoinput", "Integrated Camera"),
+            ("audiooutput", "Built-in Audio Analog Stereo"),
+        )
+
+    return [
+        {
+            "kind": kind,
+            "label": label,
+            "deviceId": _media_device_id(preset, kind, label, index),
+            "groupId": _media_device_id(
+                preset,
+                "group",
+                "audio" if kind.startswith("audio") else "video",
+                0,
+            ),
+        }
+        for index, (kind, label) in enumerate(labels)
+    ]
+
+
+def _media_device_id(
+    preset: FingerprintPresetConfig,
+    kind: str,
+    label: str,
+    index: int,
+) -> str:
+    digest = hashlib.sha256(
+        "|".join((preset.user_agent, preset.platform, kind, label, str(index))).encode("utf-8")
+    ).hexdigest()
+    return digest[:32]
 
 
 def _device_canvas_seed(preset: FingerprintPresetConfig) -> int:

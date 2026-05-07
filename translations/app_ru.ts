@@ -168,6 +168,9 @@
     <message><source>Latitude</source><translation>Широта</translation></message>
     <message><source>Longitude</source><translation>Долгота</translation></message>
     <message><source>WebRTC mode</source><translation>Режим WebRTC</translation></message>
+    <message><source>Media Devices</source><translation>Медиаустройства</translation></message>
+    <message><source>Spoof media devices</source><translation>Подменять медиаустройства</translation></message>
+    <message><source>Media devices JSON</source><translation>JSON медиаустройств</translation></message>
     <message><source>Hardware concurrency</source><translation>Потоки процессора</translation></message>
     <message><source>Device memory</source><translation>Память устройства</translation></message>
     <message><source>Platform</source><translation>Платформа</translation></message>

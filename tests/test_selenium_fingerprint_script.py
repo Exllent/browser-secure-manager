@@ -290,6 +290,7 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
             "fonts.js",
             "geolocation.js",
             "headless.js",
+            "media_devices.js",
             "webgl.js",
             "webgpu.js",
             "worker_fingerprint.js",
@@ -361,6 +362,41 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
         self.assertIn("level: 0.74", script)
         self.assertIn("navigator.permissions.query", script)
         self.assertIn("secureBrowserSanitizeIceCandidate", script)
+
+    def test_script_contains_media_devices_patch(self) -> None:
+        script = _build_chromium_fingerprint_script(
+            FingerprintConfig(
+                spoof_media_devices=True,
+                media_devices=[
+                    {
+                        "kind": "audioinput",
+                        "label": "Microphone Array",
+                        "deviceId": "device-1",
+                        "groupId": "group-1",
+                    },
+                    {
+                        "kind": "videoinput",
+                        "label": "Integrated Camera",
+                        "deviceId": "device-2",
+                        "groupId": "group-2",
+                    },
+                ],
+            )
+        )
+
+        self.assertIn("secureBrowserMediaDevicesConfig", script)
+        self.assertIn("secureBrowserBuildMediaDevice", script)
+        self.assertIn("secureBrowserEnumerateDevices", script)
+        self.assertIn("secureBrowserGetUserMedia", script)
+        self.assertIn("Navigator.prototype, 'mediaDevices'", script)
+        self.assertIn('"deviceId": "device-1"', script)
+        self.assertIn('"label": "Integrated Camera"', script)
+        self.assertNotIn("__SECURE_BROWSER_CONFIG__", script)
+
+    def test_media_devices_patch_can_be_disabled(self) -> None:
+        script = _build_chromium_fingerprint_script(FingerprintConfig(spoof_media_devices=False))
+
+        self.assertNotIn("secureBrowserMediaDevicesConfig", script)
 
     def test_features_detection_patch_sets_dnt_and_gpc(self) -> None:
         script = _build_chromium_fingerprint_script(

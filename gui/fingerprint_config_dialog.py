@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -133,6 +135,13 @@ class FingerprintConfigDialog(QDialog):
         self.webrtc_mode_combo.setCurrentIndex(
             max(self.webrtc_mode_combo.findData(config.webrtc_mode), 0)
         )
+        self.spoof_media_devices_check = QCheckBox(_("Spoof media devices"))
+        self.spoof_media_devices_check.setChecked(config.spoof_media_devices)
+        self.media_devices_edit = QPlainTextEdit(_format_media_devices(config.media_devices))
+        self.media_devices_edit.setPlaceholderText(
+            '[{"kind":"audioinput","label":"Microphone","deviceId":"...","groupId":"..."}]'
+        )
+        self.media_devices_edit.setFixedHeight(120)
 
         self.hardware_spin = QSpinBox()
         self.hardware_spin.setRange(
@@ -336,6 +345,10 @@ class FingerprintConfigDialog(QDialog):
         self._add_section(form, _("WebRTC"))
         form.addRow(_("WebRTC mode"), self.webrtc_mode_combo)
 
+        self._add_section(form, _("Media Devices"))
+        form.addRow(self.spoof_media_devices_check)
+        form.addRow(_("Media devices JSON"), self.media_devices_edit)
+
         self._add_section(form, _("Hardware / Device"))
         form.addRow(_("Hardware concurrency"), self.hardware_spin)
         form.addRow(_("Device memory"), self.device_memory_combo)
@@ -471,6 +484,8 @@ class FingerprintConfigDialog(QDialog):
             geolocation=geolocation,
             locale=_split_csv(self.locale_edit.text()),
             webrtc_mode=str(self.webrtc_mode_combo.currentData() or "proxy_dns"),
+            spoof_media_devices=self.spoof_media_devices_check.isChecked(),
+            media_devices=_parse_media_devices(self.media_devices_edit.toPlainText()),
             hardware_concurrency=hardware_concurrency,
             device_memory=self.device_memory_combo.currentData(),
             platform=self.platform_combo.currentData(),
@@ -518,3 +533,19 @@ def _split_csv(value: str) -> list[str]:
 
 def _split_pipe(value: str) -> list[str]:
     return [item.strip() for item in value.split("|") if item.strip()]
+
+
+def _format_media_devices(devices: list[dict[str, str]]) -> str:
+    if not devices:
+        return ""
+    return json.dumps(devices, indent=2, ensure_ascii=False)
+
+
+def _parse_media_devices(value: str) -> object:
+    text = value.strip()
+    if not text:
+        return []
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return text
