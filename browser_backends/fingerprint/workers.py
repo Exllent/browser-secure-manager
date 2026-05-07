@@ -6,7 +6,8 @@ from app_config import APP_CONFIG
 from models.fingerprint_config import FingerprintConfig
 
 from .templates import _read_js_template, _render_js_template
-from .utils import _stable_noise_seed
+from .user_agent import _build_user_agent_metadata
+from .utils import _canvas_device_seed, _canvas_noise_level, _stable_noise_seed
 
 
 def _needs_worker_fingerprint_patch(config: FingerprintConfig) -> bool:
@@ -14,6 +15,11 @@ def _needs_worker_fingerprint_patch(config: FingerprintConfig) -> bool:
         config.canvas_mode in {"noise", "fixed"}
         or bool(config.webgl_vendor or config.webgl_renderer)
         or bool(config.font_list or config.font_spoof_count)
+        or bool(config.user_agent)
+        or bool(config.platform)
+        or bool(config.spoof_languages or config.locale)
+        or config.hardware_concurrency is not None
+        or config.device_memory is not None
     )
 
 
@@ -30,35 +36,47 @@ def _build_worker_fingerprint_script(config: FingerprintConfig) -> str:
     for index in range(config.font_spoof_count):
         fonts.append(f"{APP_CONFIG.fingerprint_generation.fake_font_prefix}{index + 1}")
 
-    noise_level = 0.0 if config.canvas_mode == "fixed" else config.canvas_noise_level
-    canvas_noise = max(1, int(round(noise_level * 255)))
+    canvas_noise = max(1, int(round(_canvas_noise_level(config) * 255)))
     webgl_noise_seed = _stable_noise_seed(
         config.user_agent or "",
         config.platform or "",
         config.webgl_vendor or "",
         config.webgl_renderer or "",
     )
-    canvas_noise_seed = getattr(config, "canvas_noise_seed", None) or _stable_noise_seed(
-        "canvas",
-        config.user_agent or "",
-        config.platform or "",
-        config.webgl_vendor or "",
-        config.webgl_renderer or "",
-        ",".join(config.spoof_languages or config.locale),
-        config.timezone or "",
-    )
+    languages = config.spoof_languages or config.locale
     return _render_js_template(
         "worker_fingerprint.js",
         {
+            "appVersion": (
+                config.user_agent.removeprefix("Mozilla/") if config.user_agent else None
+            ),
             "canvasMode": config.canvas_mode,
             "canvasNoise": canvas_noise,
-            "canvasNoiseSeed": canvas_noise_seed,
+            "canvasNoiseSeed": _canvas_device_seed(config),
+            "deviceMemory": config.device_memory,
             "fonts": fonts,
+            "hardwareConcurrency": config.hardware_concurrency,
+            "language": languages[0] if languages else None,
+            "languages": languages,
             "patchCanvas": config.canvas_mode in {"noise", "fixed"},
             "patchFonts": bool(config.font_list or config.font_spoof_count),
+            "patchNavigator": _needs_worker_navigator_patch(config),
             "patchWebGL": bool(config.webgl_vendor or config.webgl_renderer),
+            "platform": config.platform,
+            "userAgent": config.user_agent,
+            "userAgentData": _build_user_agent_metadata(config),
             "webglNoiseSeed": webgl_noise_seed,
             "webglRenderer": config.webgl_renderer or "ANGLE",
             "webglVendor": config.webgl_vendor or "Google Inc.",
         },
+    )
+
+
+def _needs_worker_navigator_patch(config: FingerprintConfig) -> bool:
+    return (
+        bool(config.user_agent)
+        or bool(config.platform)
+        or bool(config.spoof_languages or config.locale)
+        or config.hardware_concurrency is not None
+        or config.device_memory is not None
     )

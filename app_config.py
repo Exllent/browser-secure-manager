@@ -316,7 +316,7 @@ class ProxyConfigDefaults:
 
 @dataclass(frozen=True, slots=True)
 class FingerprintValidationConfig:
-    canvas_modes: tuple[str, ...] = ("noise", "fixed", "passthrough")
+    canvas_modes: tuple[str, ...] = ("noise", "fixed", "passthrough", "captured")
     webrtc_modes: tuple[str, ...] = ("disable", "public_ip_only", "proxy_dns", "passthrough")
     tls_profiles: tuple[str, ...] = ("chrome_134", "chromium_134", "random")
     platforms: tuple[str, ...] = ("Win32", "Win64", "MacIntel", "Linux x86_64", "Linux armv8l")
@@ -368,6 +368,7 @@ class FingerprintValidationConfig:
     )
     optional_string_fields: tuple[str, ...] = (
         "user_agent",
+        "canvas_capture_data_url",
         "webgl_vendor",
         "webgl_renderer",
         "timezone",
@@ -383,6 +384,8 @@ class FingerprintValidationConfig:
     canvas_noise_max: float = 0.1
     canvas_seed_min: int = 1
     canvas_seed_max: int = 4_294_967_295
+    canvas_capture_size_min: int = 1
+    canvas_capture_size_max: int = 16_384
     font_spoof_min: int = 0
     font_spoof_max: int = 5
     hardware_concurrency_min: int = 1

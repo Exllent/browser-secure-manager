@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMessageBox,
+    QPlainTextEdit,
     QScrollArea,
     QSpinBox,
     QVBoxLayout,
@@ -81,6 +82,23 @@ class FingerprintConfigDialog(QDialog):
         self.canvas_noise_spin.setSingleStep(0.01)
         self.canvas_noise_spin.setDecimals(3)
         self.canvas_noise_spin.setValue(config.canvas_noise_level)
+        self.canvas_capture_data_edit = QPlainTextEdit(config.canvas_capture_data_url or "")
+        self.canvas_capture_data_edit.setPlaceholderText("data:image/png;base64,...")
+        self.canvas_capture_data_edit.setFixedHeight(72)
+        self.canvas_capture_width_spin = QSpinBox()
+        self.canvas_capture_width_spin.setRange(
+            0,
+            APP_CONFIG.fingerprint_validation.canvas_capture_size_max,
+        )
+        self.canvas_capture_width_spin.setSpecialValueText(_("Any size"))
+        self.canvas_capture_width_spin.setValue(config.canvas_capture_width or 0)
+        self.canvas_capture_height_spin = QSpinBox()
+        self.canvas_capture_height_spin.setRange(
+            0,
+            APP_CONFIG.fingerprint_validation.canvas_capture_size_max,
+        )
+        self.canvas_capture_height_spin.setSpecialValueText(_("Any size"))
+        self.canvas_capture_height_spin.setValue(config.canvas_capture_height or 0)
 
         self.webgl_vendor_edit = QLineEdit(config.webgl_vendor or "")
         self.webgl_renderer_edit = QLineEdit(config.webgl_renderer or "")
@@ -289,6 +307,9 @@ class FingerprintConfigDialog(QDialog):
         self._add_section(form, _("Canvas / WebGL"))
         form.addRow(_("Canvas mode"), self.canvas_mode_combo)
         form.addRow(_("Canvas noise"), self.canvas_noise_spin)
+        form.addRow(_("Captured canvas data URL"), self.canvas_capture_data_edit)
+        form.addRow(_("Captured canvas width"), self.canvas_capture_width_spin)
+        form.addRow(_("Captured canvas height"), self.canvas_capture_height_spin)
         form.addRow(_("WebGL vendor"), self.webgl_vendor_edit)
         form.addRow(_("WebGL renderer"), self.webgl_renderer_edit)
 
@@ -426,7 +447,10 @@ class FingerprintConfigDialog(QDialog):
             client_hints_model=self.client_hints_model_edit.text().strip() or None,
             canvas_mode=str(self.canvas_mode_combo.currentData() or "noise"),
             canvas_noise_level=self.canvas_noise_spin.value(),
-            canvas_noise_seed=getattr(self._config, "canvas_noise_seed", None),
+            canvas_noise_seed=None,
+            canvas_capture_data_url=self.canvas_capture_data_edit.toPlainText().strip() or None,
+            canvas_capture_width=self.canvas_capture_width_spin.value() or None,
+            canvas_capture_height=self.canvas_capture_height_spin.value() or None,
             webgl_vendor=self.webgl_vendor_edit.text().strip() or None,
             webgl_renderer=self.webgl_renderer_edit.text().strip() or None,
             audio_noise=self.audio_noise_check.isChecked(),
@@ -465,7 +489,7 @@ class FingerprintConfigDialog(QDialog):
             battery_discharging_time=battery_discharging_time,
             custom_js_before_load=_split_pipe(self.before_js_edit.text()),
             custom_js_after_load=_split_pipe(self.after_js_edit.text()),
-        ).ensure_canvas_noise_seed()
+        )
 
     def _accept_if_valid(self) -> None:
         errors = self.to_config().validate()

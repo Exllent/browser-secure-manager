@@ -116,17 +116,6 @@ class AppService:
                 error_title="Fingerprint not found",
                 error_message="The selected fingerprint was not found or is disabled in application settings.",
             )
-        if (
-            fingerprint_profile is not None
-            and getattr(fingerprint_profile.config, "canvas_noise_seed", None) is None
-        ):
-            fingerprint_profile.config.ensure_canvas_noise_seed()
-            fingerprint_profile = storage.upsert_fingerprint_profile(fingerprint_profile)
-            logger.info(
-                "Assigned canvas seed to fingerprint profile %s before launch",
-                fingerprint_profile.id,
-            )
-
         try:
             self.session_processes.start_session(
                 saved,

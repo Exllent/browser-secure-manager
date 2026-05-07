@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import unittest
 
-from models.fingerprint_generator import generate_fingerprint_config, generate_fingerprint_profile
+from models.fingerprint_generator import (
+    FINGERPRINT_PRESETS,
+    generate_fingerprint_config,
+    generate_fingerprint_profile,
+)
 
 
 class FingerprintGeneratorTest(unittest.TestCase):
@@ -11,7 +15,8 @@ class FingerprintGeneratorTest(unittest.TestCase):
             config = generate_fingerprint_config()
 
             self.assertIsNotNone(config.user_agent)
-            self.assertIsNotNone(config.canvas_noise_seed)
+            self.assertIsNone(config.canvas_noise_seed)
+            self.assertEqual(config.canvas_mode, "fixed")
             self.assertIsNotNone(config.screen_width)
             self.assertIsNotNone(config.screen_height)
             self.assertIsNotNone(config.connection_effective_type)
@@ -24,10 +29,22 @@ class FingerprintGeneratorTest(unittest.TestCase):
                 self.assertEqual(config.platform, "MacIntel")
                 self.assertNotIn("Direct3D", config.webgl_renderer or "")
 
-    def test_generated_configs_get_different_canvas_seeds(self) -> None:
-        seeds = {generate_fingerprint_config().canvas_noise_seed for _ in range(20)}
+    def test_generated_configs_get_device_based_canvas_noise_levels(self) -> None:
+        levels = {
+            generate_fingerprint_config(preset).canvas_noise_level for preset in FINGERPRINT_PRESETS
+        }
 
-        self.assertGreater(len(seeds), 1)
+        self.assertGreater(len(levels), 1)
+
+    def test_same_device_preset_uses_same_canvas_profile(self) -> None:
+        preset = FINGERPRINT_PRESETS[0]
+
+        first = generate_fingerprint_config(preset)
+        second = generate_fingerprint_config(preset)
+
+        self.assertIsNone(first.canvas_noise_seed)
+        self.assertIsNone(second.canvas_noise_seed)
+        self.assertEqual(first.canvas_noise_level, second.canvas_noise_level)
 
     def test_generated_profile_uses_requested_name(self) -> None:
         profile = generate_fingerprint_profile("Generated fingerprint")

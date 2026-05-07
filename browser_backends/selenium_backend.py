@@ -32,6 +32,7 @@ from .chromium_extensions import (
 from .fingerprint import (
     _apply_chromium_fingerprint,
     _build_chromium_fingerprint_script,
+    _build_chromium_worker_fingerprint_script,
     _build_user_agent_metadata,
     _configure_chromium_fingerprint_extension,
     _configure_chromium_options,
@@ -44,6 +45,7 @@ __all__ = [
     "SeleniumBrowserManager",
     "discover_installed_browsers",
     "_build_chromium_fingerprint_script",
+    "_build_chromium_worker_fingerprint_script",
     "_build_user_agent_metadata",
     "_configure_chromium_fingerprint_extension",
     "_configure_default_extensions",
@@ -206,6 +208,7 @@ class _FingerprintTargetEnforcer:
         self.session_url = session_url
         self.session_id = session_id
         self.script = _build_chromium_fingerprint_script(fingerprint_config)
+        self.worker_script = _build_chromium_worker_fingerprint_script(fingerprint_config)
         self._counter = itertools.count(1)
         self._lock = threading.Lock()
         self._closed = threading.Event()
@@ -293,8 +296,12 @@ class _FingerprintTargetEnforcer:
                 session_id = params.get("sessionId")
                 target_info = params.get("targetInfo") or {}
                 target_type = target_info.get("type")
-                if isinstance(session_id, str) and target_type in {"page", "iframe"}:
+                if not isinstance(session_id, str):
+                    continue
+                if target_type in {"page", "iframe"}:
                     self._configure_target(session_id)
+                elif target_type in {"worker", "shared_worker"}:
+                    self._configure_worker_target(session_id)
 
     def _configure_target(self, cdp_session_id: str) -> None:
         user_agent_override = _user_agent_override_payload(self.fingerprint_config)
@@ -323,9 +330,30 @@ class _FingerprintTargetEnforcer:
             {"source": self.script},
             session_id=cdp_session_id,
         )
+        self._send(
+            "Runtime.evaluate",
+            {"expression": self.script, "includeCommandLineAPI": False},
+            session_id=cdp_session_id,
+        )
         self._send("Runtime.runIfWaitingForDebugger", {}, session_id=cdp_session_id)
         logger.info(
             "Fingerprint preload installed before target start for session %s",
+            self.session_id,
+        )
+
+    def _configure_worker_target(self, cdp_session_id: str) -> None:
+        if not self.worker_script:
+            self._send("Runtime.runIfWaitingForDebugger", {}, session_id=cdp_session_id)
+            return
+        self._send("Runtime.enable", {}, session_id=cdp_session_id)
+        self._send(
+            "Runtime.evaluate",
+            {"expression": self.worker_script, "includeCommandLineAPI": False},
+            session_id=cdp_session_id,
+        )
+        self._send("Runtime.runIfWaitingForDebugger", {}, session_id=cdp_session_id)
+        logger.info(
+            "Fingerprint worker preload installed before target start for session %s",
             self.session_id,
         )
 
@@ -383,8 +411,19 @@ def _user_agent_override_payload(config: FingerprintConfig) -> dict[str, Any] | 
 def _log_fingerprint_runtime_state(driver: webdriver.Chrome, session_id: int | None) -> None:
     try:
         state = driver.execute_script("""
+            const canvas = document.createElement('canvas');
+            canvas.width = 16;
+            canvas.height = 16;
+            const context = canvas.getContext('2d');
+            if (context) {
+                context.fillStyle = '#123456';
+                context.fillRect(0, 0, 16, 16);
+            }
+            const canvasDataUrl = canvas.toDataURL();
             return {
                 marker: globalThis.__secureBrowserFingerprintPreloadApplied === true,
+                canvasDataUrlPrefix: canvasDataUrl.slice(0, 48),
+                canvasDataUrlLength: canvasDataUrl.length,
                 platform: navigator.platform,
                 webdriver: navigator.webdriver,
                 userAgent: navigator.userAgent

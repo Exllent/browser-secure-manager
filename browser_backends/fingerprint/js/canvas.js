@@ -2,25 +2,40 @@ const secureBrowserCanvasConfig = __SECURE_BROWSER_CONFIG__;
 const secureBrowserCanvasNoise = secureBrowserCanvasConfig.noise;
 const secureBrowserCanvasMode = secureBrowserCanvasConfig.mode;
 const secureBrowserCanvasSeed = secureBrowserCanvasConfig.seed >>> 0;
+const secureBrowserCanvasState = (...values) => {
+    let state = secureBrowserCanvasSeed || 1;
+    for (const value of values) {
+        const text = String(value ?? '');
+        for (let index = 0; index < text.length; index += 1) {
+            state ^= text.charCodeAt(index);
+            state = Math.imul(state, 16777619) >>> 0;
+        }
+    }
+    return state || 1;
+};
+const secureBrowserNextCanvasState = (state) => (
+    (Math.imul(state >>> 0, 1664525) + 1013904223) >>> 0
+);
 const applyCanvasFingerprint = (imageData) => {
     if (!imageData || !imageData.data) return imageData;
+    const width = Math.max(1, Math.floor(Number(imageData.width) || 1));
+    const height = Math.max(1, Math.floor(Number(imageData.height) || 1));
     const data = imageData.data;
     const pixelCount = Math.max(1, Math.floor(data.length / 4));
-    const patchCount = secureBrowserCanvasMode === 'fixed'
-        ? Math.max(1, Math.floor(pixelCount / 128))
-        : Math.max(1, Math.floor(pixelCount / Math.max(64, 256 - secureBrowserCanvasNoise)));
-    let state = secureBrowserCanvasSeed || 1;
-    for (let i = 0; i < patchCount; i += 1) {
-        state = (state * 1664525 + 1013904223) >>> 0;
+    const patchRatio = Math.max(0.002, Math.min(0.12, secureBrowserCanvasNoise / 255));
+    const patchCount = Math.max(1, Math.floor(pixelCount * patchRatio));
+    let state = secureBrowserCanvasState(width, height, secureBrowserCanvasMode, secureBrowserCanvasNoise);
+    for (let index = 0; index < patchCount; index += 1) {
+        state = secureBrowserNextCanvasState(state);
         const pixelIndex = state % pixelCount;
-        state = (state * 1664525 + 1013904223) >>> 0;
+        state = secureBrowserNextCanvasState(state);
         const channel = (pixelIndex * 4) + (state % 3);
         if (channel >= data.length) continue;
-        const direction = secureBrowserCanvasMode === 'fixed'
-            ? 1
-            : ((state >>> 8) & 1) ? 1 : -1;
-        const delta = Math.max(1, secureBrowserCanvasNoise) * direction;
-        data[channel] = Math.max(0, Math.min(255, data[channel] + delta));
+        const direction = ((state >>> 8) & 1) ? 1 : -1;
+        state = secureBrowserNextCanvasState(state);
+        const delta = 1 + (state % secureBrowserCanvasNoise);
+        data[channel] = Math.max(0, Math.min(255, data[channel] + (direction * delta)));
+        state = secureBrowserNextCanvasState(state);
     }
     return imageData;
 };

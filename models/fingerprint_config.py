@@ -3,12 +3,11 @@ from __future__ import annotations
 import zoneinfo
 from dataclasses import asdict, dataclass, field
 from numbers import Real
-from random import SystemRandom
 from typing import Any, Literal, get_args
 
 from app_config import APP_CONFIG
 
-CanvasMode = Literal["noise", "fixed", "passthrough"]
+CanvasMode = Literal["noise", "fixed", "passthrough", "captured"]
 WebRTCMode = Literal["disable", "public_ip_only", "proxy_dns", "passthrough"]
 TLSProfile = Literal["chrome_134", "chromium_134", "random"]
 
@@ -26,7 +25,6 @@ TIMEZONE_LANGUAGE_PREFIXES = dict(_VALIDATION_CONFIG.timezone_language_prefixes)
 BOOLEAN_FIELDS = _VALIDATION_CONFIG.boolean_fields
 LIST_FIELDS = _VALIDATION_CONFIG.list_fields
 OPTIONAL_STRING_FIELDS = _VALIDATION_CONFIG.optional_string_fields
-_RANDOM = SystemRandom()
 
 assert VALID_CANVAS_MODES == set(get_args(CanvasMode))
 assert VALID_WEBRTC_MODES == set(get_args(WebRTCMode))
@@ -49,7 +47,10 @@ class FingerprintConfig:
     # === Canvas / WebGL ===
     canvas_mode: CanvasMode = "noise"
     canvas_noise_level: float = 0.02  # 0.0 - 0.1, микро-шум для уникальности
-    canvas_noise_seed: int | None = None  # стабильный seed для разных canvas hashes
+    canvas_noise_seed: int | None = None  # legacy field; canvas seed is derived from device data
+    canvas_capture_data_url: str | None = None
+    canvas_capture_width: int | None = None
+    canvas_capture_height: int | None = None
     webgl_vendor: str | None = None  # например, "Google Inc. (NVIDIA)"
     webgl_renderer: str | None = None  # например, "ANGLE (NVIDIA, ...)"
 
@@ -127,11 +128,6 @@ class FingerprintConfig:
         return asdict(self)
 
     def ensure_canvas_noise_seed(self) -> FingerprintConfig:
-        if self.canvas_mode in {"noise", "fixed"} and self.canvas_noise_seed is None:
-            self.canvas_noise_seed = _RANDOM.randint(
-                _VALIDATION_CONFIG.canvas_seed_min,
-                _VALIDATION_CONFIG.canvas_seed_max,
-            )
         return self
 
     def validate(self) -> list[str]:
@@ -143,6 +139,28 @@ class FingerprintConfig:
 
         if self.canvas_mode not in VALID_CANVAS_MODES:
             errors.append(f"Invalid canvas_mode: {self.canvas_mode}")
+
+        if self.canvas_mode == "captured" and not self.canvas_capture_data_url:
+            errors.append("captured canvas mode requires canvas_capture_data_url")
+
+        if (
+            self.canvas_capture_data_url is not None
+            and not self.canvas_capture_data_url.startswith("data:image/png;base64,")
+        ):
+            errors.append("canvas_capture_data_url must be a PNG data URL")
+
+        for field_name in ("canvas_capture_width", "canvas_capture_height"):
+            value = getattr(self, field_name)
+            if value is None:
+                continue
+            if not isinstance(value, int) or isinstance(value, bool):
+                errors.append(f"{field_name} must be an integer")
+            elif not (
+                _VALIDATION_CONFIG.canvas_capture_size_min
+                <= value
+                <= _VALIDATION_CONFIG.canvas_capture_size_max
+            ):
+                errors.append(f"{field_name} must be between 1 and 16384")
 
         if not self._is_number(self.canvas_noise_level):
             errors.append("canvas_noise_level must be a number")

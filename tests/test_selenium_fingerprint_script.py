@@ -15,6 +15,7 @@ from browser_backends.selenium_backend import (
     SeleniumBrowserBackend,
     _apply_chromium_fingerprint,
     _build_chromium_fingerprint_script,
+    _build_chromium_worker_fingerprint_script,
     _build_user_agent_metadata,
     _configure_chromium_fingerprint_extension,
     _configure_default_extensions,
@@ -190,7 +191,8 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
         self.assertIn("__secureBrowserCanvasExportPatched", script)
         self.assertIn("copyCanvasWithNoise", script)
         self.assertIn("applyCanvasFingerprint(imageData)", script)
-        self.assertIn('"seed": 123456789', script)
+        self.assertIn('"seed": ', script)
+        self.assertNotIn('"seed": 123456789', script)
         self.assertIn("WEBGL_debug_renderer_info", script)
         self.assertIn("WebGLRenderingContext", script)
         self.assertIn("secureBrowserWeakWebGLNoise", script)
@@ -211,7 +213,7 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
         self.assertNotIn("__SECURE_BROWSER_CONFIG__", script)
         self.assertNotIn("__SECURE_BROWSER_WORKER_SCRIPT__", script)
 
-    def test_canvas_patch_changes_with_canvas_seed(self) -> None:
+    def test_canvas_patch_ignores_legacy_canvas_seed(self) -> None:
         first = _build_chromium_fingerprint_script(
             FingerprintConfig(canvas_noise_seed=111, audio_noise=False)
         )
@@ -219,8 +221,32 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
             FingerprintConfig(canvas_noise_seed=222, audio_noise=False)
         )
 
-        self.assertIn('"seed": 111', first)
-        self.assertIn('"seed": 222', second)
+        self.assertEqual(first, second)
+
+    def test_canvas_patch_changes_with_device_profile(self) -> None:
+        first = _build_chromium_fingerprint_script(
+            FingerprintConfig(
+                audio_noise=False,
+                platform="Win32",
+                user_agent=(
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/134.0.0.0 Safari/537.36"
+                ),
+            )
+        )
+        second = _build_chromium_fingerprint_script(
+            FingerprintConfig(
+                audio_noise=False,
+                platform="MacIntel",
+                user_agent=(
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/134.0.0.0 Safari/537.36"
+                ),
+            )
+        )
+
         self.assertNotEqual(first, second)
 
     def test_canvas_patch_accepts_legacy_config_without_canvas_seed(self) -> None:
@@ -229,9 +255,28 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
         self.assertIn("secureBrowserCanvasSeed", script)
         self.assertIn('"seed": ', script)
 
+    def test_captured_canvas_patch_uses_configured_data_url(self) -> None:
+        data_url = "data:image/png;base64,iVBORw0KGgo="
+
+        script = _build_chromium_fingerprint_script(
+            FingerprintConfig(
+                canvas_mode="captured",
+                canvas_capture_data_url=data_url,
+                canvas_capture_width=220,
+                canvas_capture_height=30,
+                audio_noise=False,
+            )
+        )
+
+        self.assertIn("secureBrowserCapturedCanvasDataUrl", script)
+        self.assertIn(data_url, script)
+        self.assertIn('"width": 220', script)
+        self.assertIn('"height": 30', script)
+
     def test_fingerprint_js_templates_are_present(self) -> None:
         expected_templates = {
             "audio.js",
+            "canvas_capture.js",
             "canvas.js",
             "content_filter.js",
             "device.js",
@@ -414,6 +459,31 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
         self.assertEqual(metadata["platformVersion"], "15.0.0")  # type: ignore[index]
         self.assertEqual(metadata["model"], "Workstation")  # type: ignore[index]
 
+    def test_worker_script_spoofs_navigator_values(self) -> None:
+        script = _build_chromium_worker_fingerprint_script(
+            FingerprintConfig(
+                user_agent=(
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/134.0.0.0 Safari/537.36"
+                ),
+                platform="Win32",
+                spoof_languages=["en-US", "en"],
+                hardware_concurrency=8,
+                device_memory=8,
+                canvas_mode="passthrough",
+                audio_noise=False,
+            )
+        )
+
+        self.assertIn("patchWorkerNavigatorProperty", script)
+        self.assertIn("'userAgent'", script)
+        self.assertIn("'platform'", script)
+        self.assertIn("'userAgentData'", script)
+        self.assertIn("'oscpu'", script)
+        self.assertIn('"platform": "Windows"', script)
+        self.assertNotIn("GNU/Linux", script)
+
     def test_webrtc_leak_prevent_extension_is_loaded_by_default(self) -> None:
         extension_path = _webrtc_leak_prevent_extension_path()
         manifest_path = extension_path / "manifest.json"
@@ -490,7 +560,7 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
         self.assertIn(str(_webrtc_leak_prevent_extension_path()), enable_extension_args[0])
         self.assertIn(str(extension_dir), enable_extension_args[0])
 
-    def test_fingerprint_extension_path_changes_with_script_digest(self) -> None:
+    def test_fingerprint_extension_path_ignores_legacy_canvas_seed(self) -> None:
         profile_dir = Path(tempfile.mkdtemp())
         stale_dir = profile_dir / APP_CONFIG.chromium_extensions.fingerprint_extension_dirname
         stale_dir.mkdir()
@@ -517,6 +587,40 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
             second_options,
             profile_dir,
             FingerprintConfig(canvas_noise_seed=222),
+        )
+        second_extension_dirs = {
+            path.name
+            for path in profile_dir.iterdir()
+            if path.name.startswith(
+                f"{APP_CONFIG.chromium_extensions.fingerprint_extension_dirname}_"
+            )
+        }
+
+        self.assertEqual(len(second_extension_dirs), 1)
+        self.assertEqual(first_extension_dirs, second_extension_dirs)
+
+    def test_fingerprint_extension_path_changes_with_device_profile(self) -> None:
+        profile_dir = Path(tempfile.mkdtemp())
+
+        first_options = ChromeOptions()
+        _configure_chromium_fingerprint_extension(
+            first_options,
+            profile_dir,
+            FingerprintConfig(platform="Win32"),
+        )
+        first_extension_dirs = {
+            path.name
+            for path in profile_dir.iterdir()
+            if path.name.startswith(
+                f"{APP_CONFIG.chromium_extensions.fingerprint_extension_dirname}_"
+            )
+        }
+
+        second_options = ChromeOptions()
+        _configure_chromium_fingerprint_extension(
+            second_options,
+            profile_dir,
+            FingerprintConfig(platform="MacIntel"),
         )
         second_extension_dirs = {
             path.name

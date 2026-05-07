@@ -154,6 +154,10 @@
     <message><source>Locale</source><translation>Локаль</translation></message>
     <message><source>Canvas mode</source><translation>Режим Canvas</translation></message>
     <message><source>Canvas noise</source><translation>Шум Canvas</translation></message>
+    <message><source>Captured canvas data URL</source><translation>Data URL захваченного Canvas</translation></message>
+    <message><source>Captured canvas width</source><translation>Ширина захваченного Canvas</translation></message>
+    <message><source>Captured canvas height</source><translation>Высота захваченного Canvas</translation></message>
+    <message><source>Any size</source><translation>Любой размер</translation></message>
     <message><source>WebGL vendor</source><translation>Производитель WebGL</translation></message>
     <message><source>WebGL renderer</source><translation>Рендерер WebGL</translation></message>
     <message><source>Audio noise</source><translation>Шум Audio</translation></message>

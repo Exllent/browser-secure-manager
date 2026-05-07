@@ -119,6 +119,11 @@ def _build_user_agent_patch(config: FingerprintConfig) -> str:
         configurable: true
     }});
 
+    Object.defineProperty(Navigator.prototype, 'oscpu', {{
+        get: () => undefined,
+        configurable: true
+    }});
+
     const buildUserAgentData = () => {{
         const data = {{
             brands: secureBrowserUserAgentData.brands.map((brand) => ({{...brand}})),

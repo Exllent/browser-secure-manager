@@ -26,7 +26,11 @@ from .headless import _build_headless_patch
 from .navigator import _build_navigator_patches
 from .user_agent import _build_user_agent_metadata, _build_user_agent_patch
 from .webgl import _build_webgl_patch
-from .workers import _build_worker_fingerprint_patch, _needs_worker_fingerprint_patch
+from .workers import (
+    _build_worker_fingerprint_patch,
+    _build_worker_fingerprint_script,
+    _needs_worker_fingerprint_patch,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -106,11 +110,7 @@ def _configure_chromium_fingerprint_extension(
         encoding="utf-8",
     )
     _add_chromium_extension(options, extension_dir)
-    logger.info(
-        "Fingerprint extension prepared at %s with canvas seed %s",
-        extension_dir,
-        getattr(config, "canvas_noise_seed", None),
-    )
+    logger.info("Fingerprint extension prepared at %s", extension_dir)
 
 
 def _build_fingerprint_background_script() -> str:
@@ -268,7 +268,7 @@ def _build_chromium_fingerprint_script(config: FingerprintConfig) -> str:
     if geolocation_patch:
         patches.append(geolocation_patch)
 
-    if config.canvas_mode in {"noise", "fixed"}:
+    if config.canvas_mode in {"noise", "fixed", "captured"}:
         patches.append(_build_canvas_patch(config))
 
     if config.audio_noise:
@@ -293,6 +293,12 @@ def _build_chromium_fingerprint_script(config: FingerprintConfig) -> str:
         + "\n".join(patches)
         + "\n})();"
     )
+
+
+def _build_chromium_worker_fingerprint_script(config: FingerprintConfig) -> str:
+    if not _needs_worker_fingerprint_patch(config):
+        return ""
+    return _build_worker_fingerprint_script(config)
 
 
 def _grant_geolocation_permission(driver: webdriver.Chrome, session_url: str) -> None:

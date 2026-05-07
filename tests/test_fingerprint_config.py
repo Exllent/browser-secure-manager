@@ -116,13 +116,27 @@ class FingerprintConfigTest(unittest.TestCase):
 
         self.assertIn("canvas_noise_seed must be between 1 and 4294967295", errors)
 
-    def test_ensure_canvas_seed_assigns_missing_seed(self) -> None:
+    def test_captured_canvas_requires_png_data_url(self) -> None:
+        errors = FingerprintConfig(canvas_mode="captured").validate()
+
+        self.assertIn("captured canvas mode requires canvas_capture_data_url", errors)
+
+        errors = FingerprintConfig(
+            canvas_mode="captured",
+            canvas_capture_data_url="https://example.com/canvas.png",
+            canvas_capture_width=0,
+        ).validate()
+
+        self.assertIn("canvas_capture_data_url must be a PNG data URL", errors)
+        self.assertIn("canvas_capture_width must be between 1 and 16384", errors)
+
+    def test_ensure_canvas_seed_keeps_legacy_seed_optional(self) -> None:
         config = FingerprintConfig()
 
         result = config.ensure_canvas_noise_seed()
 
         self.assertIs(result, config)
-        self.assertIsNotNone(config.canvas_noise_seed)
+        self.assertIsNone(config.canvas_noise_seed)
         self.assertEqual(config.validate(), [])
 
     def test_invalid_string_lists_are_reported(self) -> None:

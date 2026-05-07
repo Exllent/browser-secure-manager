@@ -364,7 +364,7 @@ class AppSettingsDialog(QDialog):
             FingerprintProfile(
                 id=None,
                 name=self._unique_fingerprint_name(_("New fingerprint")),
-                config=FingerprintConfig().ensure_canvas_noise_seed(),
+                config=FingerprintConfig(),
                 enabled=True,
             )
         )
