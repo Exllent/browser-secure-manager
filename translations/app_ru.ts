@@ -171,6 +171,9 @@
     <message><source>Media Devices</source><translation>Медиаустройства</translation></message>
     <message><source>Spoof media devices</source><translation>Подменять медиаустройства</translation></message>
     <message><source>Media devices JSON</source><translation>JSON медиаустройств</translation></message>
+    <message><source>Speech Voices</source><translation>Голоса речи</translation></message>
+    <message><source>Spoof speech voices</source><translation>Подменять голоса речи</translation></message>
+    <message><source>Speech voices JSON</source><translation>JSON голосов речи</translation></message>
     <message><source>Hardware concurrency</source><translation>Потоки процессора</translation></message>
     <message><source>Device memory</source><translation>Память устройства</translation></message>
     <message><source>Platform</source><translation>Платформа</translation></message>

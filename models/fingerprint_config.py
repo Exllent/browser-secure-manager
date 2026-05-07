@@ -94,6 +94,8 @@ class FingerprintConfig:
     spoof_feature_detection: bool = True  # стабильный профиль feature-detection API
     spoof_media_devices: bool = True  # navigator.mediaDevices.enumerateDevices()
     media_devices: list[dict[str, str]] = field(default_factory=list)
+    spoof_speech_voices: bool = True  # speechSynthesis.getVoices()
+    speech_voices: list[dict[str, str | bool]] = field(default_factory=list)
     do_not_track: str | None = None
     global_privacy_control: bool = False
     connection_downlink: float | None = None
@@ -123,6 +125,8 @@ class FingerprintConfig:
                 values[field_name] = []
         if values.get("media_devices") is None:
             values["media_devices"] = []
+        if values.get("speech_voices") is None:
+            values["speech_voices"] = []
 
         if isinstance(values.get("geolocation"), list | tuple):
             values["geolocation"] = tuple(values["geolocation"])
@@ -246,6 +250,7 @@ class FingerprintConfig:
         self._validate_connection(errors)
         self._validate_battery(errors)
         self._validate_media_devices(errors)
+        self._validate_speech_voices(errors)
 
         for field_name in LIST_FIELDS:
             self._validate_str_list(field_name, getattr(self, field_name), errors)
@@ -426,6 +431,32 @@ class FingerprintConfig:
                 value = device.get(key, "")
                 if not isinstance(value, str):
                     errors.append(f"media_devices item {index} {key} must be a string")
+
+    def _validate_speech_voices(self, errors: list[str]) -> None:
+        if not isinstance(self.speech_voices, list):
+            errors.append("speech_voices must be a list")
+            return
+
+        allowed_keys = {"voiceURI", "name", "lang", "localService", "default"}
+        for index, voice in enumerate(self.speech_voices, start=1):
+            if not isinstance(voice, dict):
+                errors.append(f"speech_voices item {index} must be an object")
+                continue
+
+            unknown_keys = set(voice) - allowed_keys
+            if unknown_keys:
+                keys = ", ".join(sorted(unknown_keys))
+                errors.append(f"speech_voices item {index} has unknown keys: {keys}")
+
+            for key in ("voiceURI", "name", "lang"):
+                value = voice.get(key, "")
+                if not isinstance(value, str):
+                    errors.append(f"speech_voices item {index} {key} must be a string")
+
+            for key in ("localService", "default"):
+                value = voice.get(key, False)
+                if not isinstance(value, bool):
+                    errors.append(f"speech_voices item {index} {key} must be a boolean")
 
     def _validate_consistency(self, errors: list[str]) -> None:
         if not self.user_agent:

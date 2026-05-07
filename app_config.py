@@ -357,6 +357,7 @@ class FingerprintValidationConfig:
         "spoof_permissions",
         "spoof_feature_detection",
         "spoof_media_devices",
+        "spoof_speech_voices",
         "global_privacy_control",
         "hide_adblock_signs",
         "spoof_battery",

@@ -57,6 +57,8 @@ def generate_fingerprint_config(
         spoof_feature_detection=True,
         spoof_media_devices=True,
         media_devices=_default_media_devices(selected_preset),
+        spoof_speech_voices=True,
+        speech_voices=_default_speech_voices(selected_preset),
         do_not_track=None,
         global_privacy_control=False,
         connection_downlink=selected_preset.connection_downlink,
@@ -135,6 +137,59 @@ def _media_device_id(
         "|".join((preset.user_agent, preset.platform, kind, label, str(index))).encode("utf-8")
     ).hexdigest()
     return digest[:32]
+
+
+def _default_speech_voices(preset: FingerprintPresetConfig) -> list[dict[str, str | bool]]:
+    primary_language = preset.languages[0] if preset.languages else "en-US"
+    primary_name = _speech_voice_name(primary_language)
+
+    if preset.platform == "MacIntel":
+        names = (primary_name, "Samantha", "Alex")
+        prefix = "com.apple.speech.synthesis.voice"
+    elif preset.platform.startswith("Win"):
+        names = (primary_name, "Microsoft David Desktop", "Microsoft Zira Desktop")
+        prefix = "Microsoft"
+    else:
+        names = (primary_name, "Google US English", "English United States")
+        prefix = "Google"
+
+    return [
+        {
+            "voiceURI": _speech_voice_uri(preset, prefix, name, index),
+            "name": name,
+            "lang": primary_language if index == 0 else "en-US",
+            "localService": index != 1,
+            "default": index == 0,
+        }
+        for index, name in enumerate(dict.fromkeys(names))
+    ]
+
+
+def _speech_voice_name(language: str) -> str:
+    language_prefix = language.split("-", 1)[0].lower()
+    if language_prefix == "ru":
+        return "Google Russian"
+    if language_prefix == "de":
+        return "Google Deutsch"
+    if language_prefix == "fr":
+        return "Google French"
+    if language_prefix == "ja":
+        return "Google Japanese"
+    if language.lower() == "en-gb":
+        return "Google UK English Female"
+    return "Google US English"
+
+
+def _speech_voice_uri(
+    preset: FingerprintPresetConfig,
+    prefix: str,
+    name: str,
+    index: int,
+) -> str:
+    digest = hashlib.sha256(
+        "|".join((preset.user_agent, preset.platform, prefix, name, str(index))).encode("utf-8")
+    ).hexdigest()
+    return f"{prefix}.{name}".replace(" ", "-") + f".{digest[:8]}"
 
 
 def _device_canvas_seed(preset: FingerprintPresetConfig) -> int:

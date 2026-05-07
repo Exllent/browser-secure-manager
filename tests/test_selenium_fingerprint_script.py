@@ -291,6 +291,7 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
             "geolocation.js",
             "headless.js",
             "media_devices.js",
+            "speech_voices.js",
             "webgl.js",
             "webgpu.js",
             "worker_fingerprint.js",
@@ -397,6 +398,36 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
         script = _build_chromium_fingerprint_script(FingerprintConfig(spoof_media_devices=False))
 
         self.assertNotIn("secureBrowserMediaDevicesConfig", script)
+
+    def test_script_contains_speech_voices_patch(self) -> None:
+        script = _build_chromium_fingerprint_script(
+            FingerprintConfig(
+                spoof_speech_voices=True,
+                speech_voices=[
+                    {
+                        "voiceURI": "voice-1",
+                        "name": "Test Voice",
+                        "lang": "en-US",
+                        "localService": True,
+                        "default": True,
+                    }
+                ],
+            )
+        )
+
+        self.assertIn("secureBrowserSpeechVoicesConfig", script)
+        self.assertIn("secureBrowserBuildSpeechVoice", script)
+        self.assertIn("secureBrowserGetVoices", script)
+        self.assertIn("voiceschanged", script)
+        self.assertIn("window, 'speechSynthesis'", script)
+        self.assertIn('"voiceURI": "voice-1"', script)
+        self.assertIn('"name": "Test Voice"', script)
+        self.assertNotIn("__SECURE_BROWSER_CONFIG__", script)
+
+    def test_speech_voices_patch_can_be_disabled(self) -> None:
+        script = _build_chromium_fingerprint_script(FingerprintConfig(spoof_speech_voices=False))
+
+        self.assertNotIn("secureBrowserSpeechVoicesConfig", script)
 
     def test_features_detection_patch_sets_dnt_and_gpc(self) -> None:
         script = _build_chromium_fingerprint_script(

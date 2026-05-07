@@ -25,6 +25,7 @@ from .geolocation import _build_geolocation_patch
 from .headless import _build_headless_patch
 from .media_devices import _build_media_devices_patch
 from .navigator import _build_navigator_patches
+from .speech_voices import _build_speech_voices_patch
 from .user_agent import _build_user_agent_metadata, _build_user_agent_patch
 from .webgl import _build_webgl_patch
 from .webgpu import _build_webgpu_patch
@@ -279,6 +280,10 @@ def _build_chromium_fingerprint_script(config: FingerprintConfig) -> str:
     media_devices_patch = _build_media_devices_patch(config)
     if media_devices_patch:
         patches.append(media_devices_patch)
+
+    speech_voices_patch = _build_speech_voices_patch(config)
+    if speech_voices_patch:
+        patches.append(speech_voices_patch)
 
     geolocation_patch = _build_geolocation_patch(config)
     if geolocation_patch:

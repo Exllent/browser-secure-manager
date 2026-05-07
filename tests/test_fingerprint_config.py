@@ -50,8 +50,10 @@ class FingerprintConfigTest(unittest.TestCase):
             hide_automation="yes",  # type: ignore[arg-type]
             spoof_feature_detection="yes",  # type: ignore[arg-type]
             spoof_media_devices="yes",  # type: ignore[arg-type]
+            spoof_speech_voices="yes",  # type: ignore[arg-type]
             global_privacy_control="yes",  # type: ignore[arg-type]
             media_devices="camera",  # type: ignore[arg-type]
+            speech_voices="voice",  # type: ignore[arg-type]
             canvas_noise_level="high",  # type: ignore[arg-type]
             canvas_noise_seed="seed",  # type: ignore[arg-type]
             font_spoof_count=1.5,  # type: ignore[arg-type]
@@ -73,8 +75,10 @@ class FingerprintConfigTest(unittest.TestCase):
         self.assertIn("hide_automation must be a boolean", errors)
         self.assertIn("spoof_feature_detection must be a boolean", errors)
         self.assertIn("spoof_media_devices must be a boolean", errors)
+        self.assertIn("spoof_speech_voices must be a boolean", errors)
         self.assertIn("global_privacy_control must be a boolean", errors)
         self.assertIn("media_devices must be a list", errors)
+        self.assertIn("speech_voices must be a list", errors)
         self.assertIn("canvas_noise_level must be a number", errors)
         self.assertIn("canvas_noise_seed must be an integer", errors)
         self.assertIn("font_spoof_count must be an integer", errors)
@@ -108,6 +112,16 @@ class FingerprintConfigTest(unittest.TestCase):
                     "extra": "value",
                 }
             ],
+            speech_voices=[
+                {
+                    "voiceURI": 1,
+                    "name": "Voice",
+                    "lang": "en-US",
+                    "localService": "yes",
+                    "default": False,
+                    "extra": "value",
+                }
+            ],
             connection_effective_type="5g",
             connection_type="fiber",
         )
@@ -123,6 +137,9 @@ class FingerprintConfigTest(unittest.TestCase):
         self.assertIn("Invalid do_not_track: maybe", errors)
         self.assertIn("media_devices item 1 has unknown keys: extra", errors)
         self.assertIn("media_devices item 1 has invalid kind: sensor", errors)
+        self.assertIn("speech_voices item 1 has unknown keys: extra", errors)
+        self.assertIn("speech_voices item 1 voiceURI must be a string", errors)
+        self.assertIn("speech_voices item 1 localService must be a boolean", errors)
         self.assertIn("Invalid connection_effective_type: 5g", errors)
         self.assertIn("Invalid connection_type: fiber", errors)
 
@@ -193,6 +210,8 @@ class FingerprintConfigTest(unittest.TestCase):
         self.assertTrue(data["spoof_feature_detection"])
         self.assertTrue(data["spoof_media_devices"])
         self.assertEqual(data["media_devices"], [])
+        self.assertTrue(data["spoof_speech_voices"])
+        self.assertEqual(data["speech_voices"], [])
         self.assertIsNone(data["do_not_track"])
         self.assertFalse(data["global_privacy_control"])
         self.assertFalse(data["hide_adblock_signs"])
