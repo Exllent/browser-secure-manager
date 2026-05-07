@@ -6,6 +6,7 @@
     const secureBrowserWorkerConfig = __SECURE_BROWSER_CONFIG__;
     const secureBrowserPatchWorkerCanvas = secureBrowserWorkerConfig.patchCanvas;
     const secureBrowserPatchWorkerWebGL = secureBrowserWorkerConfig.patchWebGL;
+    const secureBrowserPatchWorkerWebGPU = secureBrowserWorkerConfig.patchWebGPU;
     const secureBrowserPatchWorkerFonts = secureBrowserWorkerConfig.patchFonts;
     const secureBrowserPatchWorkerNavigator = secureBrowserWorkerConfig.patchNavigator;
     const secureBrowserCanvasNoise = secureBrowserWorkerConfig.canvasNoise;
@@ -62,6 +63,16 @@
         try {
             Object.defineProperty(target, property, {
                 get: () => value,
+                configurable: true
+            });
+        } catch (error) {
+        }
+    };
+    const patchWorkerNavigatorWebGPU = (target) => {
+        if (!target) return;
+        try {
+            Object.defineProperty(target, 'gpu', {
+                get: () => undefined,
                 configurable: true
             });
         } catch (error) {
@@ -131,6 +142,12 @@
                 });
             } catch (error) {
             }
+        }
+    }
+    if (secureBrowserPatchWorkerWebGPU) {
+        patchWorkerNavigatorWebGPU(self.WorkerNavigator && WorkerNavigator.prototype);
+        if (self.navigator) {
+            patchWorkerNavigatorWebGPU(Object.getPrototypeOf(self.navigator));
         }
     }
 

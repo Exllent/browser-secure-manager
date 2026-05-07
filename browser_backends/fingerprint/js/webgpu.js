@@ -1,32 +1,16 @@
-const secureBrowserWebGPUConfig = __SECURE_BROWSER_CONFIG__;
-const secureBrowserWebGPUAdapterInfo = Object.freeze({
-    vendor: secureBrowserWebGPUConfig.vendor,
-    architecture: '',
-    device: '',
-    description: secureBrowserWebGPUConfig.renderer
-});
+const secureBrowserPatchWebGPUPrototype = (prototype) => {
+    if (!prototype) return;
+    try {
+        Object.defineProperty(prototype, 'gpu', {
+            get: () => undefined,
+            configurable: true
+        });
+    } catch (error) {
+    }
+};
 
-const secureBrowserBuildGPUAdapter = () => Object.freeze({
-    name: secureBrowserWebGPUAdapterInfo.description,
-    info: secureBrowserWebGPUAdapterInfo,
-    isFallbackAdapter: false,
-    features: Object.freeze(new Set()),
-    limits: Object.freeze({}),
-    requestDevice: async () => Promise.reject(
-        new DOMException('WebGPU is unavailable for this fingerprint profile', 'NotSupportedError')
-    )
-});
-
-const secureBrowserGPU = Object.freeze({
-    requestAdapter: async () => secureBrowserBuildGPUAdapter(),
-    getPreferredCanvasFormat: () => 'bgra8unorm',
-    wgslLanguageFeatures: Object.freeze(new Set())
-});
-
-try {
-    Object.defineProperty(Navigator.prototype, 'gpu', {
-        get: () => secureBrowserGPU,
-        configurable: true
-    });
-} catch (error) {
+secureBrowserPatchWebGPUPrototype(globalThis.Navigator && Navigator.prototype);
+secureBrowserPatchWebGPUPrototype(globalThis.WorkerNavigator && WorkerNavigator.prototype);
+if (globalThis.navigator) {
+    secureBrowserPatchWebGPUPrototype(Object.getPrototypeOf(globalThis.navigator));
 }

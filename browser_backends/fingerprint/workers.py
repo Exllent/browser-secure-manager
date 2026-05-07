@@ -11,16 +11,8 @@ from .utils import _canvas_device_seed, _canvas_noise_level, _stable_noise_seed
 
 
 def _needs_worker_fingerprint_patch(config: FingerprintConfig) -> bool:
-    return (
-        config.canvas_mode in {"noise", "fixed"}
-        or bool(config.webgl_vendor or config.webgl_renderer)
-        or bool(config.font_list or config.font_spoof_count)
-        or bool(config.user_agent)
-        or bool(config.platform)
-        or bool(config.spoof_languages or config.locale)
-        or config.hardware_concurrency is not None
-        or config.device_memory is not None
-    )
+    # Worker WebGPU protection is always enabled so pages cannot bypass it with WorkerNavigator.gpu.
+    return True
 
 
 def _build_worker_fingerprint_patch(config: FingerprintConfig) -> str:
@@ -61,6 +53,7 @@ def _build_worker_fingerprint_script(config: FingerprintConfig) -> str:
             "patchCanvas": config.canvas_mode in {"noise", "fixed"},
             "patchFonts": bool(config.font_list or config.font_spoof_count),
             "patchNavigator": _needs_worker_navigator_patch(config),
+            "patchWebGPU": True,
             "patchWebGL": bool(config.webgl_vendor or config.webgl_renderer),
             "platform": config.platform,
             "userAgent": config.user_agent,

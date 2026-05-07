@@ -265,9 +265,10 @@ def _build_chromium_fingerprint_script(config: FingerprintConfig) -> str:
     if user_agent_patch:
         patches.append(user_agent_patch)
 
+    patches.append(_build_webgpu_patch(config))
+
     if config.webgl_vendor or config.webgl_renderer:
         patches.append(_build_webgl_patch(config))
-        patches.append(_build_webgpu_patch(config))
 
     device_patch = _build_device_patch(config)
     if device_patch:

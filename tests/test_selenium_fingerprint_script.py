@@ -199,9 +199,10 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
         self.assertIn("secureBrowserWeakWebGLNoise", script)
         self.assertIn("prototype.readPixels", script)
         self.assertIn("noisyWebGLCanvasDataURL", script)
-        self.assertIn("secureBrowserWebGPUConfig", script)
-        self.assertIn("Navigator.prototype, 'gpu'", script)
-        self.assertIn("requestAdapter", script)
+        self.assertIn("secureBrowserPatchWebGPUPrototype", script)
+        self.assertIn("Navigator.prototype", script)
+        self.assertIn("'gpu'", script)
+        self.assertIn("get: () => undefined", script)
         self.assertIn("queryLocalFonts", script)
         self.assertIn("Object.getPrototypeOf(document.fonts)", script)
         self.assertIn("secureBrowserBuildFontFace", script)
@@ -260,6 +261,23 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
 
         self.assertIn("secureBrowserCanvasSeed", script)
         self.assertIn('"seed": ', script)
+
+    def test_webgpu_patch_is_not_tied_to_webgl_settings(self) -> None:
+        script = _build_chromium_fingerprint_script(
+            FingerprintConfig(
+                canvas_mode="passthrough",
+                audio_noise=False,
+                hide_headless=False,
+                webgl_vendor=None,
+                webgl_renderer=None,
+            )
+        )
+
+        self.assertIn("secureBrowserPatchWebGPUPrototype", script)
+        self.assertIn("Navigator.prototype", script)
+        self.assertIn("'gpu'", script)
+        self.assertNotIn("secureBrowserWebGPUConfig", script)
+        self.assertNotIn("secureBrowserWebGLConfig", script)
 
     def test_captured_canvas_patch_uses_configured_data_url(self) -> None:
         data_url = "data:image/png;base64,iVBORw0KGgo="
@@ -580,6 +598,8 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
         self.assertIn("'platform'", script)
         self.assertIn("'userAgentData'", script)
         self.assertIn("'oscpu'", script)
+        self.assertIn("patchWorkerNavigatorWebGPU", script)
+        self.assertIn("'gpu'", script)
         self.assertIn('"platform": "Windows"', script)
         self.assertNotIn("GNU/Linux", script)
 
