@@ -202,19 +202,24 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
         self.assertIn("secureBrowserPatchWebGPUPrototype", script)
         self.assertIn("Navigator.prototype", script)
         self.assertIn("'gpu'", script)
-        self.assertIn("get: () => undefined", script)
+        self.assertIn("requestAdapter", script)
+        self.assertIn("requestDevice", script)
+        self.assertIn("GPUAdapter", script)
+        self.assertIn("GPUSupportedLimits", script)
+        self.assertIn(
+            '"description": "ANGLE (NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0)"', script
+        )
         self.assertIn("queryLocalFonts", script)
         self.assertIn("Object.getPrototypeOf(document.fonts)", script)
         self.assertIn("secureBrowserBuildFontFace", script)
         self.assertIn("fontFaceSetPrototype.load", script)
         self.assertIn("stripFontShorthand", script)
         self.assertIn("CanvasRenderingContext2D.prototype.measureText", script)
+        self.assertIn("secureBrowserClientRectsConfig", script)
         self.assertIn("secureBrowserPatchWorkerConstructor('Worker')", script)
         self.assertIn("secureBrowserPatchWorkerConstructor('SharedWorker')", script)
         self.assertIn("secureBrowserWorkerFingerprintScript", script)
         self.assertIn("secureBrowserWorkerCanvas2DPatched", script)
-        self.assertIn("HTMLElement.prototype, 'offsetWidth'", script)
-        self.assertIn("HTMLElement.prototype, 'offsetHeight'", script)
         self.assertIn("Element.prototype.getBoundingClientRect", script)
         self.assertIn("Element.prototype.getClientRects", script)
         self.assertNotIn("__SECURE_BROWSER_CONFIG__", script)
@@ -276,8 +281,24 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
         self.assertIn("secureBrowserPatchWebGPUPrototype", script)
         self.assertIn("Navigator.prototype", script)
         self.assertIn("'gpu'", script)
-        self.assertNotIn("secureBrowserWebGPUConfig", script)
+        self.assertIn("secureBrowserWebGPUConfig", script)
+        self.assertIn("requestAdapter", script)
         self.assertNotIn("secureBrowserWebGLConfig", script)
+
+    def test_client_rects_patch_is_not_tied_to_font_settings(self) -> None:
+        script = _build_chromium_fingerprint_script(
+            FingerprintConfig(
+                canvas_mode="passthrough",
+                audio_noise=False,
+                font_list=[],
+                font_spoof_count=0,
+            )
+        )
+
+        self.assertIn("secureBrowserClientRectsConfig", script)
+        self.assertIn("Element.prototype.getBoundingClientRect", script)
+        self.assertIn("Element.prototype.getClientRects", script)
+        self.assertNotIn("secureBrowserFontConfig", script)
 
     def test_captured_canvas_patch_uses_configured_data_url(self) -> None:
         data_url = "data:image/png;base64,iVBORw0KGgo="
@@ -302,6 +323,7 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
             "audio.js",
             "canvas_capture.js",
             "canvas.js",
+            "client_rects.js",
             "content_filter.js",
             "device.js",
             "features_core.js",
@@ -588,6 +610,7 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
                 spoof_languages=["en-US", "en"],
                 hardware_concurrency=8,
                 device_memory=8,
+                timezone="America/New_York",
                 canvas_mode="passthrough",
                 audio_noise=False,
             )
@@ -598,10 +621,39 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
         self.assertIn("'platform'", script)
         self.assertIn("'userAgentData'", script)
         self.assertIn("'oscpu'", script)
-        self.assertIn("patchWorkerNavigatorWebGPU", script)
+        self.assertIn("secureBrowserPatchWebGPUPrototype", script)
+        self.assertIn("requestAdapter", script)
         self.assertIn("'gpu'", script)
+        self.assertIn("secureBrowserWorkerTimezone", script)
+        self.assertIn('"timezone": "America/New_York"', script)
+        self.assertIn("resolvedOptions", script)
         self.assertIn('"platform": "Windows"', script)
         self.assertNotIn("GNU/Linux", script)
+
+    def test_worker_target_gets_timezone_override(self) -> None:
+        driver = mock.Mock()
+        driver.capabilities = {}
+        enforcer = selenium_backend_module._FingerprintTargetEnforcer(
+            driver,
+            FingerprintConfig(timezone="Europe/Moscow"),
+            "about:blank",
+            1,
+        )
+        enforcer._send = mock.Mock()  # type: ignore[method-assign]
+
+        enforcer._configure_worker_target("worker-session")
+
+        enforcer._send.assert_any_call(
+            "Emulation.setTimezoneOverride",
+            {"timezoneId": "Europe/Moscow"},
+            session_id="worker-session",
+        )
+        enforcer._send.assert_any_call("Runtime.enable", {}, session_id="worker-session")
+        enforcer._send.assert_any_call(
+            "Runtime.runIfWaitingForDebugger",
+            {},
+            session_id="worker-session",
+        )
 
     def test_webrtc_leak_prevent_extension_is_loaded_by_default(self) -> None:
         extension_path = _webrtc_leak_prevent_extension_path()

@@ -230,13 +230,19 @@ Fingerprint application:
 - Individual fingerprint Python builders live in separate files:
   - `audio.py`
   - `canvas.py`
+  - `client_rects.py`
   - `content_filter.py`
+  - `device.py`
   - `features_detection.py`
   - `fonts.py`
+  - `geolocation.py`
   - `headless.py`
+  - `media_devices.py`
   - `navigator.py`
+  - `speech_voices.py`
   - `user_agent.py`
   - `webgl.py`
+  - `webgpu.py`
   - `workers.py`
   - `utils.py`
 
@@ -246,11 +252,18 @@ Large JavaScript patch bodies live under `browser_backends/fingerprint/js/`.
 Current JS templates:
 - `audio.js`
 - `canvas.js`
+- `canvas_capture.js`
+- `client_rects.js`
 - `content_filter.js`
+- `device.js`
 - `features_core.js`
 - `fonts.js`
+- `geolocation.js`
 - `headless.js`
+- `media_devices.js`
+- `speech_voices.js`
 - `webgl.js`
+- `webgpu.js`
 - `worker_fingerprint.js`
 - `worker_wrapper.js`
 
@@ -262,8 +275,10 @@ Current fingerprint settings include:
 - languages and locale
 - canvas behavior
 - WebGL vendor/renderer
+- WebGPU adapter/device API spoofing
 - audio noise
 - font list and fake font count
+- ClientRects/layout metrics
 - timezone and geolocation
 - WebRTC mode
 - hardware concurrency

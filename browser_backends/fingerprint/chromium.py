@@ -17,6 +17,7 @@ from models.fingerprint_config import FingerprintConfig
 
 from .audio import _build_audio_patch
 from .canvas import _build_canvas_patch
+from .client_rects import _build_client_rects_patch
 from .content_filter import _build_content_filter_patch
 from .device import _build_device_patch
 from .features_detection import _build_features_detection_patch
@@ -269,6 +270,8 @@ def _build_chromium_fingerprint_script(config: FingerprintConfig) -> str:
 
     if config.webgl_vendor or config.webgl_renderer:
         patches.append(_build_webgl_patch(config))
+
+    patches.append(_build_client_rects_patch(config))
 
     device_patch = _build_device_patch(config)
     if device_patch:

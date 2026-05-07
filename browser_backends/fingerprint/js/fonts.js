@@ -82,22 +82,6 @@ const withMaskedFontsReplaced = (element, callback) => {
         element.style.fontFamily = previousInlineFamily;
     }
 };
-const buildRect = (rect, widthDelta, heightDelta) => {
-    const nextWidth = Math.max(0, rect.width + widthDelta);
-    const nextHeight = Math.max(0, rect.height + heightDelta);
-    const data = {
-        x: rect.x,
-        y: rect.y,
-        width: nextWidth,
-        height: nextHeight,
-        top: rect.top,
-        left: rect.left,
-        right: rect.left + nextWidth,
-        bottom: rect.top + nextHeight
-    };
-    if (window.DOMRect && DOMRect.fromRect) return DOMRect.fromRect(data);
-    return data;
-};
 const secureBrowserBuildFontFace = (family) => {
     if (!window.FontFace) return {family, status: 'loaded'};
     try {
@@ -219,59 +203,6 @@ if (window.CanvasRenderingContext2D) {
                     return Reflect.get(metricTarget, property, metricTarget);
                 }
             });
-        }
-    });
-}
-
-const patchElementMetric = (prototype, property, deltaAxis) => {
-    if (!prototype) return;
-    const descriptor = Object.getOwnPropertyDescriptor(prototype, property);
-    if (!descriptor || !descriptor.get) return;
-    Object.defineProperty(prototype, property, {
-        get() {
-            const families = familiesFromElement(this);
-            const readMetric = () => descriptor.get.call(this);
-            if (hasMaskedSystemFont(families)) return withMaskedFontsReplaced(this, readMetric);
-            const value = readMetric();
-            const signal = fontSignal(families);
-            if (!signal) return value;
-            return value + (deltaAxis === 'width' ? signal : Math.max(1, Math.floor(signal / 2)));
-        },
-        configurable: true
-    });
-};
-
-patchElementMetric(HTMLElement.prototype, 'offsetWidth', 'width');
-patchElementMetric(HTMLElement.prototype, 'offsetHeight', 'height');
-
-if (window.Element && Element.prototype.getBoundingClientRect) {
-    const originalGetBoundingClientRect = Element.prototype.getBoundingClientRect;
-    Element.prototype.getBoundingClientRect = new Proxy(originalGetBoundingClientRect, {
-        apply(target, thisArg, args) {
-            const families = familiesFromElement(thisArg);
-            const readRect = () => Reflect.apply(target, thisArg, args);
-            if (hasMaskedSystemFont(families)) return withMaskedFontsReplaced(thisArg, readRect);
-            const rect = readRect();
-            const signal = fontSignal(families);
-            if (!signal) return rect;
-            return buildRect(rect, signal, Math.max(1, Math.floor(signal / 2)));
-        }
-    });
-}
-
-if (window.Element && Element.prototype.getClientRects) {
-    const originalGetClientRects = Element.prototype.getClientRects;
-    Element.prototype.getClientRects = new Proxy(originalGetClientRects, {
-        apply(target, thisArg, args) {
-            const families = familiesFromElement(thisArg);
-            const readRects = () => Reflect.apply(target, thisArg, args);
-            if (hasMaskedSystemFont(families)) return withMaskedFontsReplaced(thisArg, readRects);
-            const rects = readRects();
-            const signal = fontSignal(families);
-            if (!signal) return rects;
-            return Array.from(rects).map((rect) =>
-                buildRect(rect, signal, Math.max(1, Math.floor(signal / 2)))
-            );
         }
     });
 }

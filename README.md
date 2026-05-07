@@ -19,7 +19,8 @@ window, and fingerprint settings at startup.
 - CSV proxy import and bulk proxy cleanup.
 - Application-level fingerprint profiles selected per session.
 - Fingerprint patches for user agent, client hints, languages, platform, canvas, WebGL,
-  audio, fonts, workers, geolocation, WebRTC policy, and automation/headless indicators.
+  WebGPU, audio, fonts, ClientRects, workers, geolocation, WebRTC policy, and
+  automation/headless indicators.
 - Per-session logs plus application and error log export.
 - JSON backup import/export for sessions and application records.
 - Profile cache retention controls for deleted session profiles.
@@ -57,17 +58,22 @@ secure_browser/
 │   └── fingerprint/
 │       ├── audio.py
 │       ├── canvas.py
+│       ├── client_rects.py
 │       ├── chromium.py
 │       ├── content_filter.py
+│       ├── device.py
 │       ├── features_detection.py
 │       ├── fonts.py
 │       ├── geolocation.py
 │       ├── headless.py
+│       ├── media_devices.py
 │       ├── navigator.py
+│       ├── speech_voices.py
 │       ├── templates.py
 │       ├── user_agent.py
 │       ├── utils.py
 │       ├── webgl.py
+│       ├── webgpu.py
 │       ├── workers.py
 │       └── js/
 ├── browser_extensions/
@@ -84,6 +90,8 @@ secure_browser/
 │   ├── sessions.py
 │   ├── settings.py
 │   └── storage.py
+├── docs/
+│   └── fingerprint_boundaries.md
 ├── gui/
 │   ├── app_settings_dialog.py
 │   ├── browser_config_row.py

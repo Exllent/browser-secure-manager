@@ -8,6 +8,7 @@ from models.fingerprint_config import FingerprintConfig
 from .templates import _read_js_template, _render_js_template
 from .user_agent import _build_user_agent_metadata
 from .utils import _canvas_device_seed, _canvas_noise_level, _stable_noise_seed
+from .webgpu import _build_webgpu_patch
 
 
 def _needs_worker_fingerprint_patch(config: FingerprintConfig) -> bool:
@@ -36,7 +37,7 @@ def _build_worker_fingerprint_script(config: FingerprintConfig) -> str:
         config.webgl_renderer or "",
     )
     languages = config.spoof_languages or config.locale
-    return _render_js_template(
+    worker_script = _render_js_template(
         "worker_fingerprint.js",
         {
             "appVersion": (
@@ -53,9 +54,9 @@ def _build_worker_fingerprint_script(config: FingerprintConfig) -> str:
             "patchCanvas": config.canvas_mode in {"noise", "fixed"},
             "patchFonts": bool(config.font_list or config.font_spoof_count),
             "patchNavigator": _needs_worker_navigator_patch(config),
-            "patchWebGPU": True,
             "patchWebGL": bool(config.webgl_vendor or config.webgl_renderer),
             "platform": config.platform,
+            "timezone": config.timezone,
             "userAgent": config.user_agent,
             "userAgentData": _build_user_agent_metadata(config),
             "webglNoiseSeed": webgl_noise_seed,
@@ -63,6 +64,7 @@ def _build_worker_fingerprint_script(config: FingerprintConfig) -> str:
             "webglVendor": config.webgl_vendor or "Google Inc.",
         },
     )
+    return _build_webgpu_patch(config) + "\n" + worker_script
 
 
 def _needs_worker_navigator_patch(config: FingerprintConfig) -> bool:

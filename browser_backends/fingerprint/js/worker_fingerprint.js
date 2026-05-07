@@ -6,7 +6,6 @@
     const secureBrowserWorkerConfig = __SECURE_BROWSER_CONFIG__;
     const secureBrowserPatchWorkerCanvas = secureBrowserWorkerConfig.patchCanvas;
     const secureBrowserPatchWorkerWebGL = secureBrowserWorkerConfig.patchWebGL;
-    const secureBrowserPatchWorkerWebGPU = secureBrowserWorkerConfig.patchWebGPU;
     const secureBrowserPatchWorkerFonts = secureBrowserWorkerConfig.patchFonts;
     const secureBrowserPatchWorkerNavigator = secureBrowserWorkerConfig.patchNavigator;
     const secureBrowserCanvasNoise = secureBrowserWorkerConfig.canvasNoise;
@@ -15,6 +14,7 @@
     const secureBrowserCanvasNoiseSeed = secureBrowserWorkerConfig.canvasNoiseSeed >>> 0;
     const secureBrowserWebGLNoiseSeed = secureBrowserWorkerConfig.webglNoiseSeed;
     const secureBrowserWorkerUserAgentData = secureBrowserWorkerConfig.userAgentData;
+    const secureBrowserWorkerTimezone = secureBrowserWorkerConfig.timezone;
     const fingerprintWebGLDebugInfo = {
         UNMASKED_VENDOR_WEBGL: 37445,
         UNMASKED_RENDERER_WEBGL: 37446
@@ -63,16 +63,6 @@
         try {
             Object.defineProperty(target, property, {
                 get: () => value,
-                configurable: true
-            });
-        } catch (error) {
-        }
-    };
-    const patchWorkerNavigatorWebGPU = (target) => {
-        if (!target) return;
-        try {
-            Object.defineProperty(target, 'gpu', {
-                get: () => undefined,
                 configurable: true
             });
         } catch (error) {
@@ -144,10 +134,19 @@
             }
         }
     }
-    if (secureBrowserPatchWorkerWebGPU) {
-        patchWorkerNavigatorWebGPU(self.WorkerNavigator && WorkerNavigator.prototype);
-        if (self.navigator) {
-            patchWorkerNavigatorWebGPU(Object.getPrototypeOf(self.navigator));
+
+    if (secureBrowserWorkerTimezone && self.Intl && Intl.DateTimeFormat) {
+        const originalResolvedOptions = Intl.DateTimeFormat.prototype.resolvedOptions;
+        if (originalResolvedOptions && !Intl.DateTimeFormat.prototype.__secureBrowserTimezonePatched) {
+            Object.defineProperty(Intl.DateTimeFormat.prototype, '__secureBrowserTimezonePatched', {value: true});
+            Intl.DateTimeFormat.prototype.resolvedOptions = new Proxy(originalResolvedOptions, {
+                apply(target, thisArg, args) {
+                    return {
+                        ...Reflect.apply(target, thisArg, args),
+                        timeZone: secureBrowserWorkerTimezone
+                    };
+                }
+            });
         }
     }
 

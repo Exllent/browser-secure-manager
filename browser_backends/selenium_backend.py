@@ -356,6 +356,12 @@ class _FingerprintTargetEnforcer:
         if not self.worker_script:
             self._send("Runtime.runIfWaitingForDebugger", {}, session_id=cdp_session_id)
             return
+        if self.fingerprint_config.timezone:
+            self._send(
+                "Emulation.setTimezoneOverride",
+                {"timezoneId": self.fingerprint_config.timezone},
+                session_id=cdp_session_id,
+            )
         self._send("Runtime.enable", {}, session_id=cdp_session_id)
         self._send(
             "Runtime.evaluate",
