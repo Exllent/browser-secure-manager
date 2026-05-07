@@ -27,7 +27,12 @@ def _build_features_detection_patch(config: FingerprintConfig) -> str:
 def _build_core_features_patch(config: FingerprintConfig) -> str:
     return _render_js_template(
         "features_core.js",
-        {"webrtcSupported": config.webrtc_mode != "disable"},
+        {
+            "doNotTrack": getattr(config, "do_not_track", None),
+            "globalPrivacyControl": getattr(config, "global_privacy_control", False),
+            "webrtcMode": getattr(config, "webrtc_mode", "proxy_dns"),
+            "webrtcSupported": getattr(config, "webrtc_mode", "proxy_dns") != "disable",
+        },
     )
 
 

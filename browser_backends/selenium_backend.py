@@ -7,6 +7,7 @@ import threading
 import urllib.request
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 from selenium import webdriver
 from selenium.common.exceptions import WebDriverException
@@ -171,6 +172,7 @@ class SeleniumBrowserBackend:
         if proxy_config is not None:
             logger.info("Applying proxy %s for session %s", proxy_config.display_name(), session.id)
             options.add_argument(f"--proxy-server={proxy_config.browser_proxy_url()}")
+            _configure_proxy_dns_leak_prevention(options, proxy_config)
         _configure_default_extensions(options)
         if fingerprint_config is not None:
             logger.info("Applying fingerprint config for session %s", session.id)
@@ -305,10 +307,19 @@ class _FingerprintTargetEnforcer:
 
     def _configure_target(self, cdp_session_id: str) -> None:
         user_agent_override = _user_agent_override_payload(self.fingerprint_config)
+        extra_headers = _extra_http_headers(self.fingerprint_config)
+        if user_agent_override is not None or extra_headers:
+            self._send("Network.enable", {}, session_id=cdp_session_id)
         if user_agent_override is not None:
             self._send(
                 "Network.setUserAgentOverride",
                 user_agent_override,
+                session_id=cdp_session_id,
+            )
+        if extra_headers:
+            self._send(
+                "Network.setExtraHTTPHeaders",
+                {"headers": extra_headers},
                 session_id=cdp_session_id,
             )
         if self.fingerprint_config.timezone:
@@ -406,6 +417,30 @@ def _user_agent_override_payload(config: FingerprintConfig) -> dict[str, Any] | 
     if user_agent_metadata is not None:
         override["userAgentMetadata"] = user_agent_metadata
     return override
+
+
+def _extra_http_headers(config: FingerprintConfig) -> dict[str, str]:
+    headers: dict[str, str] = {}
+    do_not_track = getattr(config, "do_not_track", None)
+    if do_not_track is not None:
+        headers["DNT"] = do_not_track
+    return headers
+
+
+def _configure_proxy_dns_leak_prevention(
+    options: ChromeOptions,
+    proxy_config: ProxyConfig,
+) -> None:
+    host = proxy_config.host.strip()
+    excludes = ["localhost", "127.0.0.1", "::1"]
+    if host:
+        excludes.append(host)
+        parsed_host = urlsplit(f"//{host}").hostname
+        if parsed_host and parsed_host not in excludes:
+            excludes.append(parsed_host)
+    rules = ",".join(["MAP * ~NOTFOUND", *(f"EXCLUDE {item}" for item in excludes)])
+    options.add_argument(f"--host-resolver-rules={rules}")
+    options.add_argument("--disable-features=AsyncDns")
 
 
 def _log_fingerprint_runtime_state(driver: webdriver.Chrome, session_id: int | None) -> None:

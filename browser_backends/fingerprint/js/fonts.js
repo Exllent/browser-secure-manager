@@ -98,6 +98,19 @@ const buildRect = (rect, widthDelta, heightDelta) => {
     if (window.DOMRect && DOMRect.fromRect) return DOMRect.fromRect(data);
     return data;
 };
+const secureBrowserBuildFontFace = (family) => {
+    if (!window.FontFace) return {family, status: 'loaded'};
+    try {
+        const fontFace = new FontFace(family, `local("${family.replace(/"/g, '\\"')}")`);
+        try {
+            Object.defineProperty(fontFace, 'status', {get: () => 'loaded', configurable: true});
+        } catch (error) {
+        }
+        return fontFace;
+    } catch (error) {
+        return {family, status: 'loaded'};
+    }
+};
 
 const fontFaceSetPrototype = document.fonts && Object.getPrototypeOf(document.fonts);
 if (fontFaceSetPrototype && fontFaceSetPrototype.check && !fontFaceSetPrototype.__secureBrowserFontCheckPatched) {
@@ -113,6 +126,63 @@ if (fontFaceSetPrototype && fontFaceSetPrototype.check && !fontFaceSetPrototype.
             return Reflect.apply(target, thisArg, [font, text]);
         }
     });
+    if (fontFaceSetPrototype.load) {
+        const originalFontLoad = fontFaceSetPrototype.load;
+        fontFaceSetPrototype.load = new Proxy(originalFontLoad, {
+            apply(target, thisArg, args) {
+                const families = normalizeFontFamily(args[0]);
+                if (profileHasFont(families)) {
+                    return Promise.resolve(families
+                        .filter((family) => secureBrowserFonts.has(family))
+                        .map(secureBrowserBuildFontFace));
+                }
+                if (hasMaskedSystemFont(families)) return Promise.resolve([]);
+                return Reflect.apply(target, thisArg, args);
+            }
+        });
+    }
+    const secureBrowserProfileFontFaces = () => Array.from(secureBrowserFonts).map(secureBrowserBuildFontFace);
+    for (const methodName of ['values', Symbol.iterator]) {
+        const originalMethod = fontFaceSetPrototype[methodName];
+        if (!originalMethod) continue;
+        fontFaceSetPrototype[methodName] = new Proxy(originalMethod, {
+            apply(target, thisArg, args) {
+                return secureBrowserProfileFontFaces()[Symbol.iterator]();
+            }
+        });
+    }
+    if (fontFaceSetPrototype.entries) {
+        const originalEntries = fontFaceSetPrototype.entries;
+        fontFaceSetPrototype.entries = new Proxy(originalEntries, {
+            apply(target, thisArg, args) {
+                return secureBrowserProfileFontFaces()
+                    .map((face) => [face, face])[Symbol.iterator]();
+            }
+        });
+    }
+    if (fontFaceSetPrototype.forEach) {
+        const originalForEach = fontFaceSetPrototype.forEach;
+        fontFaceSetPrototype.forEach = new Proxy(originalForEach, {
+            apply(target, thisArg, args) {
+                const callback = args[0];
+                const thisValue = args[1];
+                if (typeof callback !== 'function') return undefined;
+                for (const face of secureBrowserProfileFontFaces()) {
+                    callback.call(thisValue, face, face, thisArg);
+                }
+                return undefined;
+            }
+        });
+    }
+    const sizeDescriptor = Object.getOwnPropertyDescriptor(fontFaceSetPrototype, 'size');
+    if (sizeDescriptor && sizeDescriptor.get) {
+        Object.defineProperty(fontFaceSetPrototype, 'size', {
+            get() {
+                return secureBrowserFonts.size;
+            },
+            configurable: true
+        });
+    }
 }
 
 Object.defineProperty(window, 'queryLocalFonts', {

@@ -212,6 +212,15 @@ class FingerprintConfigDialog(QDialog):
         self.spoof_permissions_check.setChecked(config.spoof_permissions)
         self.spoof_feature_detection_check = QCheckBox(_("Spoof feature detection"))
         self.spoof_feature_detection_check.setChecked(config.spoof_feature_detection)
+        self.do_not_track_combo = QComboBox()
+        self.do_not_track_combo.addItem(_("Browser default"), None)
+        self.do_not_track_combo.addItem("DNT: 1", "1")
+        self.do_not_track_combo.addItem("DNT: 0", "0")
+        self.do_not_track_combo.setCurrentIndex(
+            max(self.do_not_track_combo.findData(config.do_not_track), 0)
+        )
+        self.global_privacy_control_check = QCheckBox(_("Global Privacy Control"))
+        self.global_privacy_control_check.setChecked(config.global_privacy_control)
         self.hide_adblock_check = QCheckBox(_("Hide adblock signs"))
         self.hide_adblock_check.setChecked(config.hide_adblock_signs)
         self.spoof_battery_check = QCheckBox(_("Spoof battery"))
@@ -357,6 +366,8 @@ class FingerprintConfigDialog(QDialog):
         form.addRow(_("Connection type"), self.connection_type_combo)
         form.addRow(self.spoof_permissions_check)
         form.addRow(self.spoof_feature_detection_check)
+        form.addRow(_("Do Not Track"), self.do_not_track_combo)
+        form.addRow(self.global_privacy_control_check)
         form.addRow(self.spoof_battery_check)
         form.addRow(self.battery_charging_check)
         form.addRow(_("Battery level"), self.battery_level_spin)
@@ -476,6 +487,8 @@ class FingerprintConfigDialog(QDialog):
             spoof_connection=self.spoof_connection_check.isChecked(),
             spoof_permissions=self.spoof_permissions_check.isChecked(),
             spoof_feature_detection=self.spoof_feature_detection_check.isChecked(),
+            do_not_track=self.do_not_track_combo.currentData(),
+            global_privacy_control=self.global_privacy_control_check.isChecked(),
             connection_downlink=connection_downlink,
             connection_effective_type=self.connection_effective_type_combo.currentData(),
             connection_rtt=connection_rtt,

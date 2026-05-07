@@ -202,6 +202,8 @@ def collect_strings() -> None:
     QCoreApplication.translate("App", "Connection type")
     QCoreApplication.translate("App", "Spoof permissions")
     QCoreApplication.translate("App", "Spoof feature detection")
+    QCoreApplication.translate("App", "Do Not Track")
+    QCoreApplication.translate("App", "Global Privacy Control")
     QCoreApplication.translate("App", "Hide adblock signs")
     QCoreApplication.translate("App", "Spoof battery")
     QCoreApplication.translate("App", "Battery charging")

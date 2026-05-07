@@ -55,6 +55,8 @@ def generate_fingerprint_config(
         spoof_connection=True,
         spoof_permissions=True,
         spoof_feature_detection=True,
+        do_not_track=None,
+        global_privacy_control=False,
         connection_downlink=selected_preset.connection_downlink,
         connection_effective_type=selected_preset.connection_effective_type,
         connection_rtt=selected_preset.connection_rtt,

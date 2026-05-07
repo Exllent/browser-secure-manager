@@ -24,6 +24,7 @@ from browser_backends.selenium_backend import (
 )
 from models.browser_config import BrowserConfig
 from models.fingerprint_config import FingerprintConfig
+from models.proxy_config import ProxyConfig
 from models.session_entry import SessionEntry
 
 
@@ -198,8 +199,13 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
         self.assertIn("secureBrowserWeakWebGLNoise", script)
         self.assertIn("prototype.readPixels", script)
         self.assertIn("noisyWebGLCanvasDataURL", script)
+        self.assertIn("secureBrowserWebGPUConfig", script)
+        self.assertIn("Navigator.prototype, 'gpu'", script)
+        self.assertIn("requestAdapter", script)
         self.assertIn("queryLocalFonts", script)
         self.assertIn("Object.getPrototypeOf(document.fonts)", script)
+        self.assertIn("secureBrowserBuildFontFace", script)
+        self.assertIn("fontFaceSetPrototype.load", script)
         self.assertIn("stripFontShorthand", script)
         self.assertIn("CanvasRenderingContext2D.prototype.measureText", script)
         self.assertIn("secureBrowserPatchWorkerConstructor('Worker')", script)
@@ -285,6 +291,7 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
             "geolocation.js",
             "headless.js",
             "webgl.js",
+            "webgpu.js",
             "worker_fingerprint.js",
             "worker_wrapper.js",
         }
@@ -300,7 +307,10 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
         self.assertIn("secureBrowserStripHeadless", script)
         self.assertIn("secureBrowserAudioNoiseSeed", script)
         self.assertIn("AudioBuffer.prototype.getChannelData", script)
+        self.assertIn("AudioBuffer.prototype.copyFromChannel", script)
         self.assertIn("AnalyserNode.prototype", script)
+        self.assertIn("'getByteFrequencyData'", script)
+        self.assertIn("OfflineAudioContext", script)
         self.assertIn("secureBrowserAdBlockBaitPattern", script)
         self.assertIn("window.getComputedStyle", script)
         self.assertIn("patchAdBlockMetric", script)
@@ -350,6 +360,17 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
         self.assertIn("Navigator.prototype.getBattery", script)
         self.assertIn("level: 0.74", script)
         self.assertIn("navigator.permissions.query", script)
+        self.assertIn("secureBrowserSanitizeIceCandidate", script)
+
+    def test_features_detection_patch_sets_dnt_and_gpc(self) -> None:
+        script = _build_chromium_fingerprint_script(
+            FingerprintConfig(do_not_track="1", global_privacy_control=True)
+        )
+
+        self.assertIn('"doNotTrack": "1"', script)
+        self.assertIn('"globalPrivacyControl": true', script)
+        self.assertIn("Navigator.prototype,\n    'doNotTrack'", script)
+        self.assertIn("Navigator.prototype,\n    'globalPrivacyControl'", script)
 
     def test_script_contains_screen_device_patch_when_configured(self) -> None:
         script = _build_chromium_fingerprint_script(
@@ -400,6 +421,17 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
                 "longitude": 37.6173,
                 "accuracy": 100,
             },
+        )
+
+    def test_apply_chromium_fingerprint_sets_dnt_header(self) -> None:
+        driver = mock.Mock()
+
+        _apply_chromium_fingerprint(driver, FingerprintConfig(do_not_track="1"), "about:blank")
+
+        driver.execute_cdp_cmd.assert_any_call("Network.enable", {})
+        driver.execute_cdp_cmd.assert_any_call(
+            "Network.setExtraHTTPHeaders",
+            {"headers": {"DNT": "1"}},
         )
 
     def test_features_detection_patch_can_be_disabled(self) -> None:
@@ -505,6 +537,62 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
             "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
             options.arguments,
         )
+
+    def test_proxy_dns_leak_prevention_is_configured_with_proxy(self) -> None:
+        session = SessionEntry(
+            id=1,
+            name="Session",
+            url="about:blank",
+            browser="chrome",
+            profile_path="profile",
+        )
+        browser_config = BrowserConfig(
+            id=None,
+            key="chrome",
+            display_name="Chrome / Chromium",
+            browser_type="chromium",
+        )
+        proxy_config = ProxyConfig(
+            id=1,
+            label="Proxy",
+            host="proxy.example",
+            port=1080,
+            proxy_type="socks5",
+        )
+        driver = mock.Mock()
+
+        with tempfile.TemporaryDirectory() as profile_dir:
+            with (
+                mock.patch.object(
+                    selenium_backend_module,
+                    "_browser_binary_from_config",
+                    return_value=None,
+                ),
+                mock.patch.object(selenium_backend_module, "_configure_default_extensions"),
+                mock.patch.object(
+                    selenium_backend_module.webdriver,
+                    "Chrome",
+                    return_value=driver,
+                ) as chrome_mock,
+            ):
+                SeleniumBrowserBackend._open_chromium(
+                    session,
+                    browser_config,
+                    Path(profile_dir),
+                    proxy_config=proxy_config,
+                    fingerprint_config=None,
+                )
+
+        options = chrome_mock.call_args.kwargs["options"]
+        resolver_arguments = [
+            argument
+            for argument in options.arguments
+            if argument.startswith("--host-resolver-rules=")
+        ]
+        self.assertEqual(len(resolver_arguments), 1)
+        self.assertIn("MAP * ~NOTFOUND", resolver_arguments[0])
+        self.assertIn("EXCLUDE proxy.example", resolver_arguments[0])
+        self.assertIn("--disable-features=AsyncDns", options.arguments)
 
     def test_fingerprint_extension_is_loaded_with_webrtc_extension(self) -> None:
         profile_dir = Path(tempfile.mkdtemp())

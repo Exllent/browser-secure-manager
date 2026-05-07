@@ -26,6 +26,7 @@ from .headless import _build_headless_patch
 from .navigator import _build_navigator_patches
 from .user_agent import _build_user_agent_metadata, _build_user_agent_patch
 from .webgl import _build_webgl_patch
+from .webgpu import _build_webgpu_patch
 from .workers import (
     _build_worker_fingerprint_patch,
     _build_worker_fingerprint_script,
@@ -217,6 +218,15 @@ def _apply_chromium_fingerprint(
         driver.execute_cdp_cmd("Network.setUserAgentOverride", override)
         logger.info("Applied CDP User-Agent override")
 
+    do_not_track = getattr(config, "do_not_track", None)
+    if do_not_track is not None:
+        driver.execute_cdp_cmd("Network.enable", {})
+        driver.execute_cdp_cmd(
+            "Network.setExtraHTTPHeaders",
+            {"headers": {"DNT": do_not_track}},
+        )
+        logger.info("Applied DNT header override")
+
     if config.timezone:
         driver.execute_cdp_cmd("Emulation.setTimezoneOverride", {"timezoneId": config.timezone})
         logger.info("Applied CDP timezone override: %s", config.timezone)
@@ -255,6 +265,7 @@ def _build_chromium_fingerprint_script(config: FingerprintConfig) -> str:
 
     if config.webgl_vendor or config.webgl_renderer:
         patches.append(_build_webgl_patch(config))
+        patches.append(_build_webgpu_patch(config))
 
     device_patch = _build_device_patch(config)
     if device_patch:

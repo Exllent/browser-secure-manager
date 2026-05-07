@@ -21,6 +21,7 @@ VALID_CLIENT_HINT_ARCHITECTURES = set(_VALIDATION_CONFIG.client_hint_architectur
 VALID_CLIENT_HINT_BITNESS_VALUES = set(_VALIDATION_CONFIG.client_hint_bitness_values)
 VALID_CONNECTION_EFFECTIVE_TYPES = set(_VALIDATION_CONFIG.connection_effective_types)
 VALID_CONNECTION_TYPES = set(_VALIDATION_CONFIG.connection_types)
+VALID_DO_NOT_TRACK_VALUES = set(_VALIDATION_CONFIG.do_not_track_values)
 TIMEZONE_LANGUAGE_PREFIXES = dict(_VALIDATION_CONFIG.timezone_language_prefixes)
 BOOLEAN_FIELDS = _VALIDATION_CONFIG.boolean_fields
 LIST_FIELDS = _VALIDATION_CONFIG.list_fields
@@ -90,6 +91,8 @@ class FingerprintConfig:
     spoof_connection: bool = True  # navigator.connection
     spoof_permissions: bool = True  # navigator.permissions.query
     spoof_feature_detection: bool = True  # стабильный профиль feature-detection API
+    do_not_track: str | None = None
+    global_privacy_control: bool = False
     connection_downlink: float | None = None
     connection_effective_type: str | None = None
     connection_rtt: int | None = None
@@ -204,6 +207,9 @@ class FingerprintConfig:
 
         if self.webrtc_mode not in VALID_WEBRTC_MODES:
             errors.append(f"Invalid webrtc_mode: {self.webrtc_mode}")
+
+        if self.do_not_track is not None and self.do_not_track not in VALID_DO_NOT_TRACK_VALUES:
+            errors.append(f"Invalid do_not_track: {self.do_not_track}")
 
         if self.hardware_concurrency is not None:
             if not isinstance(self.hardware_concurrency, int) or isinstance(

@@ -2,12 +2,13 @@ const secureBrowserFeatureDetectionConfig = __SECURE_BROWSER_CONFIG__;
 const secureBrowserFeatureDetectionProfile = Object.freeze({
     batteryapi: true,
     cookieEnabled: true,
-    doNotTrack: null,
-    globalPrivacyControl: false,
+    doNotTrack: secureBrowserFeatureDetectionConfig.doNotTrack,
+    globalPrivacyControl: secureBrowserFeatureDetectionConfig.globalPrivacyControl,
     javaEnabled: false,
     lowbattery: false,
     pdfViewerEnabled: true,
-    webrtc: secureBrowserFeatureDetectionConfig.webrtcSupported
+    webrtc: secureBrowserFeatureDetectionConfig.webrtcSupported,
+    webrtcMode: secureBrowserFeatureDetectionConfig.webrtcMode
 });
 const defineSecureBrowserFeature = (target, property, value) => {
     try {
@@ -158,6 +159,37 @@ if (secureBrowserFeatureDetectionProfile.webrtc) {
     defineSecureBrowserValue(window, 'webkitRTCPeerConnection', undefined);
     if (navigator.mediaDevices) {
         defineSecureBrowserValue(navigator.mediaDevices, 'getUserMedia', undefined);
+    }
+}
+
+const secureBrowserSanitizeIceCandidate = (value) => String(value || '')
+    .replace(/\b(?:10|127)\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g, '0.0.0.0')
+    .replace(/\b192\.168\.\d{1,3}\.\d{1,3}\b/g, '0.0.0.0')
+    .replace(/\b172\.(?:1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}\b/g, '0.0.0.0')
+    .replace(/\b169\.254\.\d{1,3}\.\d{1,3}\b/g, '0.0.0.0')
+    .replace(/\b[0-9a-f]{0,4}:[0-9a-f:]*:[0-9a-f]{0,4}\b/gi, '::');
+
+if (secureBrowserFeatureDetectionProfile.webrtc && window.RTCIceCandidate
+    && RTCIceCandidate.prototype && !RTCIceCandidate.prototype.__secureBrowserIceCandidatePatched) {
+    Object.defineProperty(RTCIceCandidate.prototype, '__secureBrowserIceCandidatePatched', {value: true});
+    const candidateDescriptor = Object.getOwnPropertyDescriptor(RTCIceCandidate.prototype, 'candidate');
+    if (candidateDescriptor && candidateDescriptor.get) {
+        Object.defineProperty(RTCIceCandidate.prototype, 'candidate', {
+            get() {
+                return secureBrowserSanitizeIceCandidate(candidateDescriptor.get.call(this));
+            },
+            configurable: true
+        });
+    }
+    const originalIceToJSON = RTCIceCandidate.prototype.toJSON;
+    if (originalIceToJSON) {
+        RTCIceCandidate.prototype.toJSON = new Proxy(originalIceToJSON, {
+            apply(target, thisArg, args) {
+                const data = Reflect.apply(target, thisArg, args);
+                if (data && data.candidate) data.candidate = secureBrowserSanitizeIceCandidate(data.candidate);
+                return data;
+            }
+        });
     }
 }
 

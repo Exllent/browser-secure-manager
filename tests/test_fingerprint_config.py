@@ -49,6 +49,7 @@ class FingerprintConfigTest(unittest.TestCase):
         config = FingerprintConfig(
             hide_automation="yes",  # type: ignore[arg-type]
             spoof_feature_detection="yes",  # type: ignore[arg-type]
+            global_privacy_control="yes",  # type: ignore[arg-type]
             canvas_noise_level="high",  # type: ignore[arg-type]
             canvas_noise_seed="seed",  # type: ignore[arg-type]
             font_spoof_count=1.5,  # type: ignore[arg-type]
@@ -56,6 +57,7 @@ class FingerprintConfigTest(unittest.TestCase):
             device_memory="lots",  # type: ignore[arg-type]
             geolocation=(True, 10),  # type: ignore[arg-type]
             timezone=123,  # type: ignore[arg-type]
+            do_not_track=1,  # type: ignore[arg-type]
             webgl_vendor=123,  # type: ignore[arg-type]
             connection_save_data="no",  # type: ignore[arg-type]
             battery_charging="yes",  # type: ignore[arg-type]
@@ -68,6 +70,7 @@ class FingerprintConfigTest(unittest.TestCase):
 
         self.assertIn("hide_automation must be a boolean", errors)
         self.assertIn("spoof_feature_detection must be a boolean", errors)
+        self.assertIn("global_privacy_control must be a boolean", errors)
         self.assertIn("canvas_noise_level must be a number", errors)
         self.assertIn("canvas_noise_seed must be an integer", errors)
         self.assertIn("font_spoof_count must be an integer", errors)
@@ -75,6 +78,7 @@ class FingerprintConfigTest(unittest.TestCase):
         self.assertIn("device_memory must be a number", errors)
         self.assertIn("geolocation latitude and longitude must be numbers", errors)
         self.assertIn("timezone must be a string or None", errors)
+        self.assertIn("do_not_track must be a string or None", errors)
         self.assertIn("webgl_vendor must be a string or None", errors)
         self.assertIn("connection_save_data must be a boolean", errors)
         self.assertIn("battery_charging must be a boolean", errors)
@@ -90,6 +94,7 @@ class FingerprintConfigTest(unittest.TestCase):
             platform="Amiga",
             client_hints_architecture="mips",
             client_hints_bitness="128",
+            do_not_track="maybe",
             connection_effective_type="5g",
             connection_type="fiber",
         )
@@ -102,6 +107,7 @@ class FingerprintConfigTest(unittest.TestCase):
         self.assertIn("Invalid platform: Amiga", errors)
         self.assertIn("Invalid client_hints_architecture: mips", errors)
         self.assertIn("Invalid client_hints_bitness: 128", errors)
+        self.assertIn("Invalid do_not_track: maybe", errors)
         self.assertIn("Invalid connection_effective_type: 5g", errors)
         self.assertIn("Invalid connection_type: fiber", errors)
 
@@ -170,6 +176,8 @@ class FingerprintConfigTest(unittest.TestCase):
         self.assertEqual(data["canvas_mode"], "noise")
         self.assertIsNone(data["canvas_noise_seed"])
         self.assertTrue(data["spoof_feature_detection"])
+        self.assertIsNone(data["do_not_track"])
+        self.assertFalse(data["global_privacy_control"])
         self.assertFalse(data["hide_adblock_signs"])
 
     def test_user_agent_consistency_is_validated(self) -> None:

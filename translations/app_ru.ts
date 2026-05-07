@@ -191,6 +191,8 @@
     <message><source>Connection type</source><translation>Тип connection</translation></message>
     <message><source>Spoof permissions</source><translation>Подменять permissions</translation></message>
     <message><source>Spoof feature detection</source><translation>Подменять feature detection</translation></message>
+    <message><source>Do Not Track</source><translation>Do Not Track</translation></message>
+    <message><source>Global Privacy Control</source><translation>Global Privacy Control</translation></message>
     <message><source>Hide adblock signs</source><translation>Скрывать признаки adblock</translation></message>
     <message><source>Spoof battery</source><translation>Подменять battery</translation></message>
     <message><source>Battery charging</source><translation>Батарея заряжается</translation></message>

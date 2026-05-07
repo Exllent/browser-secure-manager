@@ -323,6 +323,7 @@ class FingerprintValidationConfig:
     client_hint_architectures: tuple[str, ...] = ("x86", "arm")
     client_hint_bitness_values: tuple[str, ...] = ("32", "64")
     connection_effective_types: tuple[str, ...] = ("slow-2g", "2g", "3g", "4g")
+    do_not_track_values: tuple[str, ...] = ("0", "1")
     connection_types: tuple[str, ...] = (
         "bluetooth",
         "cellular",
@@ -354,6 +355,7 @@ class FingerprintValidationConfig:
         "spoof_connection",
         "spoof_permissions",
         "spoof_feature_detection",
+        "global_privacy_control",
         "hide_adblock_signs",
         "spoof_battery",
         "connection_save_data",
@@ -377,6 +379,7 @@ class FingerprintValidationConfig:
         "client_hints_architecture",
         "client_hints_bitness",
         "client_hints_model",
+        "do_not_track",
         "connection_effective_type",
         "connection_type",
     )
