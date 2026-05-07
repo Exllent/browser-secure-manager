@@ -216,6 +216,7 @@ Fingerprint data model:
 - `models/fingerprint_config.py`
 - `models/fingerprint_profile.py`
 - `models/fingerprint_generator.py`
+- `models/fingerprint_summary.py`
 
 Fingerprint UI:
 - Fingerprint profiles list: `gui/app_settings_dialog.py` and `gui/fingerprint_profile_row.py`.

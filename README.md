@@ -108,6 +108,7 @@ secure_browser/
 │   ├── fingerprint_config.py
 │   ├── fingerprint_generator.py
 │   ├── fingerprint_profile.py
+│   ├── fingerprint_summary.py
 │   ├── proxy_config.py
 │   └── session_entry.py
 ├── services/
@@ -219,9 +220,9 @@ The GUI renders localized labels separately.
 
 ## Fingerprints
 
-Open `Application Settings -> Fingerprints` to create, generate, edit, enable, or delete
-fingerprint profiles. A session only selects an existing fingerprint profile; individual
-fingerprint fields are edited in application settings.
+Open `Application Settings -> Fingerprints` to create, generate, inspect, edit, enable, or
+delete fingerprint profiles. A session only selects an existing fingerprint profile;
+individual fingerprint fields are edited in application settings.
 
 Fingerprint profiles are saved as JSON in SQLite and validated before persistence. Canvas
 noise uses a saved seed so tabs in the same session keep the same canvas signature.

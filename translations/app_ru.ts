@@ -126,10 +126,33 @@
     <message><source>Test</source><translation>Тест</translation></message>
     <message><source>Edit</source><translation>Редактировать</translation></message>
     <message><source>Generate</source><translation>Сгенерировать</translation></message>
+    <message><source>Info</source><translation>Инфо</translation></message>
     <message><source>Selected</source><translation>Выбран</translation></message>
     <message><source>Enabled</source><translation>Включен</translation></message>
     <message><source>Generated fingerprint</source><translation>Сгенерированный цифровой отпечаток</translation></message>
     <message><source>New fingerprint</source><translation>Новый цифровой отпечаток</translation></message>
+    <message><source>Fingerprint information</source><translation>Информация о цифровом отпечатке</translation></message>
+    <message><source>Identity</source><translation>Идентичность</translation></message>
+    <message><source>Locale and time</source><translation>Локаль и время</translation></message>
+    <message><source>Hardware</source><translation>Оборудование</translation></message>
+    <message><source>Display</source><translation>Экран</translation></message>
+    <message><source>Graphics</source><translation>Графика</translation></message>
+    <message><source>Browser APIs</source><translation>API браузера</translation></message>
+    <message><source>User agent</source><translation>User-Agent</translation></message>
+    <message><source>Device</source><translation>Устройство</translation></message>
+    <message><source>Country</source><translation>Страна</translation></message>
+    <message><source>Geolocation</source><translation>Геолокация</translation></message>
+    <message><source>CPU</source><translation>Процессор</translation></message>
+    <message><source>Logical cores</source><translation>Логические ядра</translation></message>
+    <message><source>Touch points</source><translation>Точки касания</translation></message>
+    <message><source>Screen</source><translation>Экран</translation></message>
+    <message><source>Available screen</source><translation>Доступная область экрана</translation></message>
+    <message><source>Scale factor</source><translation>Масштаб</translation></message>
+    <message><source>GPU</source><translation>Видеокарта</translation></message>
+    <message><source>Fonts</source><translation>Шрифты</translation></message>
+    <message><source>Media devices</source><translation>Медиаустройства</translation></message>
+    <message><source>Speech voices</source><translation>Голоса Speech</translation></message>
+    <message><source>Close</source><translation>Закрыть</translation></message>
     <message><source>Fingerprint settings</source><translation>Настройки цифрового отпечатка</translation></message>
     <message><source>Automation / Identity</source><translation>Автоматизация / идентичность</translation></message>
     <message><source>User-Agent / Locale</source><translation>User-Agent / локаль</translation></message>

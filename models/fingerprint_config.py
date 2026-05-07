@@ -479,8 +479,6 @@ class FingerprintConfig:
                 errors.append("Windows User-Agent requires Win32 or Win64 platform")
             if "Apple M" in renderer or "ANGLE Metal Renderer: Apple" in renderer:
                 errors.append("Windows User-Agent must not use Apple WebGL renderer")
-            if self.max_touch_points not in {None, 0}:
-                errors.append("Windows desktop User-Agent requires max_touch_points 0")
         elif "Linux" in user_agent or "X11" in user_agent:
             if self.platform not in validation.linux_platforms:
                 errors.append("Linux User-Agent requires Linux platform")

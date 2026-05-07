@@ -229,6 +229,16 @@ class FingerprintConfigTest(unittest.TestCase):
         self.assertIn("Macintosh User-Agent must not use Direct3D WebGL renderer", errors)
         self.assertIn("timezone Europe/Moscow is inconsistent with primary language zh-CN", errors)
 
+    def test_windows_touch_device_is_valid(self) -> None:
+        errors = FingerprintConfig(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            platform="Win32",
+            webgl_renderer="ANGLE (Intel, Intel(R) Iris(R) Xe Graphics Direct3D11 vs_5_0 ps_5_0)",
+            max_touch_points=10,
+        ).validate()
+
+        self.assertEqual(errors, [])
+
 
 if __name__ == "__main__":
     unittest.main()
