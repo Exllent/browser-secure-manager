@@ -26,12 +26,24 @@ class FingerprintConfigTest(unittest.TestCase):
             font_spoof_count=6,
             hardware_concurrency=0,
             device_memory=16,
+            screen_width=0,
+            device_scale_factor=5,
+            max_touch_points=20,
+            connection_downlink=-1,
+            connection_rtt=-1,
+            battery_level=1.5,
         ).validate()
 
         self.assertIn("canvas_noise_level must be between 0.0 and 0.1", errors)
         self.assertIn("font_spoof_count must be between 0 and 5", errors)
         self.assertIn("hardware_concurrency must be between 1 and 128", errors)
         self.assertTrue(any(error.startswith("device_memory must be one of:") for error in errors))
+        self.assertIn("screen_width must be between 1 and 16384", errors)
+        self.assertIn("device_scale_factor must be between 0.5 and 4.0", errors)
+        self.assertIn("max_touch_points must be between 0 and 16", errors)
+        self.assertIn("connection_downlink must be between 0.0 and 10000.0", errors)
+        self.assertIn("connection_rtt must be between 0 and 10000", errors)
+        self.assertIn("battery_level must be between 0.0 and 1.0", errors)
 
     def test_invalid_value_types_are_reported(self) -> None:
         config = FingerprintConfig(
@@ -45,6 +57,11 @@ class FingerprintConfigTest(unittest.TestCase):
             geolocation=(True, 10),  # type: ignore[arg-type]
             timezone=123,  # type: ignore[arg-type]
             webgl_vendor=123,  # type: ignore[arg-type]
+            connection_save_data="no",  # type: ignore[arg-type]
+            battery_charging="yes",  # type: ignore[arg-type]
+            screen_height="1080",  # type: ignore[arg-type]
+            connection_rtt="fast",  # type: ignore[arg-type]
+            battery_charging_time="soon",  # type: ignore[arg-type]
         )
 
         errors = config.validate()
@@ -59,6 +76,11 @@ class FingerprintConfigTest(unittest.TestCase):
         self.assertIn("geolocation latitude and longitude must be numbers", errors)
         self.assertIn("timezone must be a string or None", errors)
         self.assertIn("webgl_vendor must be a string or None", errors)
+        self.assertIn("connection_save_data must be a boolean", errors)
+        self.assertIn("battery_charging must be a boolean", errors)
+        self.assertIn("screen_height must be an integer", errors)
+        self.assertIn("connection_rtt must be an integer", errors)
+        self.assertIn("battery_charging_time must be an integer or None", errors)
 
     def test_invalid_runtime_literals_are_reported(self) -> None:
         config = FingerprintConfig(
@@ -66,6 +88,10 @@ class FingerprintConfigTest(unittest.TestCase):
             webrtc_mode="leaky",  # type: ignore[arg-type]
             tls_profile="chrome_old",  # type: ignore[arg-type]
             platform="Amiga",
+            client_hints_architecture="mips",
+            client_hints_bitness="128",
+            connection_effective_type="5g",
+            connection_type="fiber",
         )
 
         errors = config.validate()
@@ -74,6 +100,10 @@ class FingerprintConfigTest(unittest.TestCase):
         self.assertIn("Invalid webrtc_mode: leaky", errors)
         self.assertIn("Invalid tls_profile: chrome_old", errors)
         self.assertIn("Invalid platform: Amiga", errors)
+        self.assertIn("Invalid client_hints_architecture: mips", errors)
+        self.assertIn("Invalid client_hints_bitness: 128", errors)
+        self.assertIn("Invalid connection_effective_type: 5g", errors)
+        self.assertIn("Invalid connection_type: fiber", errors)
 
     def test_invalid_geolocation_is_reported(self) -> None:
         errors = FingerprintConfig(geolocation=(120, 200)).validate()
@@ -126,6 +156,7 @@ class FingerprintConfigTest(unittest.TestCase):
         self.assertEqual(data["canvas_mode"], "noise")
         self.assertIsNone(data["canvas_noise_seed"])
         self.assertTrue(data["spoof_feature_detection"])
+        self.assertFalse(data["hide_adblock_signs"])
 
     def test_user_agent_consistency_is_validated(self) -> None:
         errors = FingerprintConfig(
@@ -137,7 +168,7 @@ class FingerprintConfigTest(unittest.TestCase):
         ).validate()
 
         self.assertIn("Macintosh User-Agent requires platform MacIntel", errors)
-        self.assertIn("Macintosh User-Agent requires Apple WebGL renderer", errors)
+        self.assertIn("Macintosh User-Agent must not use Direct3D WebGL renderer", errors)
         self.assertIn("timezone Europe/Moscow is inconsistent with primary language zh-CN", errors)
 
 

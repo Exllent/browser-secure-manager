@@ -30,11 +30,16 @@ def _build_user_agent_metadata(config: FingerprintConfig) -> dict[str, Any] | No
         ],
         "fullVersion": full_version,
         "platform": platform_name,
-        "platformVersion": _client_hint_platform_version(config.user_agent, platform_name),
-        "architecture": _client_hint_architecture(config),
-        "model": "",
+        "platformVersion": (
+            getattr(config, "client_hints_platform_version", None)
+            if getattr(config, "client_hints_platform_version", None) is not None
+            else _client_hint_platform_version(config.user_agent, platform_name)
+        ),
+        "architecture": getattr(config, "client_hints_architecture", None)
+        or _client_hint_architecture(config),
+        "model": getattr(config, "client_hints_model", None) or "",
         "mobile": False,
-        "bitness": "64",
+        "bitness": getattr(config, "client_hints_bitness", None) or "64",
         "wow64": False,
     }
 

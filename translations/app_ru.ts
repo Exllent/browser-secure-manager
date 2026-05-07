@@ -146,6 +146,10 @@
     <message><source>Hide automation</source><translation>Скрывать автоматизацию</translation></message>
     <message><source>Hide headless</source><translation>Скрывать headless</translation></message>
     <message><source>Spoof plugins</source><translation>Подменять plugins</translation></message>
+    <message><source>Client hints platform version</source><translation>Версия платформы Client Hints</translation></message>
+    <message><source>Client hints architecture</source><translation>Архитектура Client Hints</translation></message>
+    <message><source>Client hints bitness</source><translation>Разрядность Client Hints</translation></message>
+    <message><source>Client hints model</source><translation>Модель Client Hints</translation></message>
     <message><source>Languages</source><translation>Языки</translation></message>
     <message><source>Locale</source><translation>Локаль</translation></message>
     <message><source>Canvas mode</source><translation>Режим Canvas</translation></message>
@@ -163,15 +167,33 @@
     <message><source>Hardware concurrency</source><translation>Потоки процессора</translation></message>
     <message><source>Device memory</source><translation>Память устройства</translation></message>
     <message><source>Platform</source><translation>Платформа</translation></message>
+    <message><source>Screen width</source><translation>Ширина экрана</translation></message>
+    <message><source>Screen height</source><translation>Высота экрана</translation></message>
+    <message><source>Available screen width</source><translation>Доступная ширина экрана</translation></message>
+    <message><source>Available screen height</source><translation>Доступная высота экрана</translation></message>
+    <message><source>Color depth</source><translation>Глубина цвета</translation></message>
+    <message><source>Pixel depth</source><translation>Глубина пикселя</translation></message>
+    <message><source>Device scale factor</source><translation>Масштаб устройства</translation></message>
+    <message><source>Max touch points</source><translation>Максимум touch-точек</translation></message>
     <message><source>TLS profile</source><translation>TLS-профиль</translation></message>
     <message><source>Browser default</source><translation>По умолчанию браузера</translation></message>
     <message><source>No TLS profile</source><translation>Без TLS-профиля</translation></message>
     <message><source>Spoof touch support</source><translation>Подменять touch support</translation></message>
     <message><source>Spoof connection</source><translation>Подменять connection</translation></message>
+    <message><source>Connection downlink</source><translation>Скорость connection downlink</translation></message>
+    <message><source>Connection effective type</source><translation>Тип connection effectiveType</translation></message>
+    <message><source>Connection RTT</source><translation>RTT connection</translation></message>
+    <message><source>Save-Data enabled</source><translation>Save-Data включен</translation></message>
+    <message><source>Connection type</source><translation>Тип connection</translation></message>
     <message><source>Spoof permissions</source><translation>Подменять permissions</translation></message>
     <message><source>Spoof feature detection</source><translation>Подменять feature detection</translation></message>
     <message><source>Hide adblock signs</source><translation>Скрывать признаки adblock</translation></message>
     <message><source>Spoof battery</source><translation>Подменять battery</translation></message>
+    <message><source>Battery charging</source><translation>Батарея заряжается</translation></message>
+    <message><source>Battery level</source><translation>Уровень батареи</translation></message>
+    <message><source>Battery charging time</source><translation>Время до зарядки батареи</translation></message>
+    <message><source>Battery discharging time</source><translation>Время до разрядки батареи</translation></message>
+    <message><source>Infinity</source><translation>Бесконечность</translation></message>
     <message><source>Separate scripts with |</source><translation>Разделяйте скрипты символом |</translation></message>
     <message><source>JS before load</source><translation>JS до загрузки</translation></message>
     <message><source>JS after load</source><translation>JS после загрузки</translation></message>

@@ -320,6 +320,19 @@ class FingerprintValidationConfig:
     webrtc_modes: tuple[str, ...] = ("disable", "public_ip_only", "proxy_dns", "passthrough")
     tls_profiles: tuple[str, ...] = ("chrome_134", "chromium_134", "random")
     platforms: tuple[str, ...] = ("Win32", "Win64", "MacIntel", "Linux x86_64", "Linux armv8l")
+    client_hint_architectures: tuple[str, ...] = ("x86", "arm")
+    client_hint_bitness_values: tuple[str, ...] = ("32", "64")
+    connection_effective_types: tuple[str, ...] = ("slow-2g", "2g", "3g", "4g")
+    connection_types: tuple[str, ...] = (
+        "bluetooth",
+        "cellular",
+        "ethernet",
+        "none",
+        "wifi",
+        "wimax",
+        "other",
+        "unknown",
+    )
     mac_platform: str = "MacIntel"
     windows_platforms: tuple[str, ...] = ("Win32", "Win64")
     linux_platforms: tuple[str, ...] = ("Linux x86_64", "Linux armv8l")
@@ -343,6 +356,8 @@ class FingerprintValidationConfig:
         "spoof_feature_detection",
         "hide_adblock_signs",
         "spoof_battery",
+        "connection_save_data",
+        "battery_charging",
     )
     list_fields: tuple[str, ...] = (
         "spoof_languages",
@@ -357,6 +372,12 @@ class FingerprintValidationConfig:
         "webgl_renderer",
         "timezone",
         "platform",
+        "client_hints_platform_version",
+        "client_hints_architecture",
+        "client_hints_bitness",
+        "client_hints_model",
+        "connection_effective_type",
+        "connection_type",
     )
     canvas_noise_min: float = 0.0
     canvas_noise_max: float = 0.1
@@ -366,6 +387,22 @@ class FingerprintValidationConfig:
     font_spoof_max: int = 5
     hardware_concurrency_min: int = 1
     hardware_concurrency_max: int = 128
+    screen_size_min: int = 1
+    screen_size_max: int = 16384
+    color_depth_min: int = 1
+    color_depth_max: int = 64
+    device_scale_factor_min: float = 0.5
+    device_scale_factor_max: float = 4.0
+    max_touch_points_min: int = 0
+    max_touch_points_max: int = 16
+    connection_downlink_min: float = 0.0
+    connection_downlink_max: float = 10_000.0
+    connection_rtt_min: int = 0
+    connection_rtt_max: int = 10_000
+    battery_level_min: float = 0.0
+    battery_level_max: float = 1.0
+    battery_time_min: int = 0
+    battery_time_max: int = 86_400
 
 
 @dataclass(frozen=True, slots=True)
@@ -418,11 +455,32 @@ class FingerprintPresetConfig:
     timezone: str
     geolocation: tuple[float, float]
     platform: str
+    client_hints_platform_version: str
+    client_hints_architecture: str
+    client_hints_bitness: str
+    client_hints_model: str
     hardware_concurrency: int
     device_memory: float
     webgl_vendor: str
     webgl_renderer: str
     fonts: tuple[str, ...]
+    screen_width: int
+    screen_height: int
+    screen_avail_width: int
+    screen_avail_height: int
+    color_depth: int
+    pixel_depth: int
+    device_scale_factor: float
+    max_touch_points: int
+    connection_downlink: float
+    connection_effective_type: str
+    connection_rtt: int
+    connection_save_data: bool
+    connection_type: str
+    battery_charging: bool
+    battery_level: float
+    battery_charging_time: int | None
+    battery_discharging_time: int | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -456,10 +514,10 @@ class FingerprintGenerationConfig:
     )
     fake_font_prefix: str = "Secure UI "
     canvas_noise_choices: tuple[float, ...] = (0.01, 0.015, 0.02, 0.025)
-    font_spoof_count_choices: tuple[int, ...] = (0, 1, 2)
+    font_spoof_count_choices: tuple[int, ...] = (0,)
     presets: tuple[FingerprintPresetConfig, ...] = (
         FingerprintPresetConfig(
-            label="Windows Chrome RU Moscow",
+            label="Windows desktop Chrome RU Moscow NVIDIA RTX 3060",
             user_agent=(
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -469,14 +527,35 @@ class FingerprintGenerationConfig:
             timezone="Europe/Moscow",
             geolocation=(55.755826, 37.6173),
             platform="Win32",
+            client_hints_platform_version="10.0.0",
+            client_hints_architecture="x86",
+            client_hints_bitness="64",
+            client_hints_model="",
             hardware_concurrency=8,
             device_memory=8,
             webgl_vendor="Google Inc. (NVIDIA)",
             webgl_renderer="ANGLE (NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0)",
             fonts=("Arial", "Calibri", "Cambria", "Segoe UI", "Tahoma", "Times New Roman"),
+            screen_width=1920,
+            screen_height=1080,
+            screen_avail_width=1920,
+            screen_avail_height=1040,
+            color_depth=24,
+            pixel_depth=24,
+            device_scale_factor=1.0,
+            max_touch_points=0,
+            connection_downlink=35.0,
+            connection_effective_type="4g",
+            connection_rtt=50,
+            connection_save_data=False,
+            connection_type="ethernet",
+            battery_charging=True,
+            battery_level=1.0,
+            battery_charging_time=0,
+            battery_discharging_time=None,
         ),
         FingerprintPresetConfig(
-            label="macOS Chrome US New York",
+            label="macOS MacBook Pro Chrome US New York M2 Pro",
             user_agent=(
                 "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -486,14 +565,111 @@ class FingerprintGenerationConfig:
             timezone="America/New_York",
             geolocation=(40.712776, -74.005974),
             platform="MacIntel",
+            client_hints_platform_version="14.5.0",
+            client_hints_architecture="arm",
+            client_hints_bitness="64",
+            client_hints_model="",
             hardware_concurrency=8,
             device_memory=8,
             webgl_vendor="Google Inc. (Apple)",
             webgl_renderer="ANGLE (Apple, ANGLE Metal Renderer: Apple M2 Pro, Unspecified Version)",
             fonts=("Arial", "Helvetica", "Menlo", "Monaco", "Times", "Verdana"),
+            screen_width=1512,
+            screen_height=982,
+            screen_avail_width=1512,
+            screen_avail_height=944,
+            color_depth=30,
+            pixel_depth=30,
+            device_scale_factor=2.0,
+            max_touch_points=0,
+            connection_downlink=22.0,
+            connection_effective_type="4g",
+            connection_rtt=50,
+            connection_save_data=False,
+            connection_type="wifi",
+            battery_charging=False,
+            battery_level=0.76,
+            battery_charging_time=None,
+            battery_discharging_time=21_600,
         ),
         FingerprintPresetConfig(
-            label="macOS Chrome JP Tokyo",
+            label="macOS MacBook Pro Chrome US Seattle Intel i7",
+            user_agent=(
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_6) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/132.0.0.0 Safari/537.36"
+            ),
+            languages=("en-US", "en"),
+            timezone="America/Los_Angeles",
+            geolocation=(47.606209, -122.332071),
+            platform="MacIntel",
+            client_hints_platform_version="13.6.0",
+            client_hints_architecture="x86",
+            client_hints_bitness="64",
+            client_hints_model="",
+            hardware_concurrency=12,
+            device_memory=8,
+            webgl_vendor="Google Inc. (Intel)",
+            webgl_renderer="ANGLE (Intel, Intel Iris Plus Graphics 655, OpenGL 4.1)",
+            fonts=("Arial", "Helvetica", "Menlo", "Monaco", "Times", "Verdana"),
+            screen_width=1440,
+            screen_height=900,
+            screen_avail_width=1440,
+            screen_avail_height=862,
+            color_depth=24,
+            pixel_depth=24,
+            device_scale_factor=2.0,
+            max_touch_points=0,
+            connection_downlink=20.0,
+            connection_effective_type="4g",
+            connection_rtt=50,
+            connection_save_data=False,
+            connection_type="wifi",
+            battery_charging=False,
+            battery_level=0.58,
+            battery_charging_time=None,
+            battery_discharging_time=12_600,
+        ),
+        FingerprintPresetConfig(
+            label="macOS MacBook Air Chrome US Austin M1",
+            user_agent=(
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_2) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/133.0.0.0 Safari/537.36"
+            ),
+            languages=("en-US", "en"),
+            timezone="America/Chicago",
+            geolocation=(30.267153, -97.743057),
+            platform="MacIntel",
+            client_hints_platform_version="14.2.0",
+            client_hints_architecture="arm",
+            client_hints_bitness="64",
+            client_hints_model="",
+            hardware_concurrency=8,
+            device_memory=8,
+            webgl_vendor="Google Inc. (Apple)",
+            webgl_renderer="ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)",
+            fonts=("Arial", "Helvetica", "Menlo", "Monaco", "Times", "Verdana"),
+            screen_width=1440,
+            screen_height=900,
+            screen_avail_width=1440,
+            screen_avail_height=862,
+            color_depth=30,
+            pixel_depth=30,
+            device_scale_factor=2.0,
+            max_touch_points=0,
+            connection_downlink=16.0,
+            connection_effective_type="4g",
+            connection_rtt=75,
+            connection_save_data=False,
+            connection_type="wifi",
+            battery_charging=False,
+            battery_level=0.71,
+            battery_charging_time=None,
+            battery_discharging_time=19_800,
+        ),
+        FingerprintPresetConfig(
+            label="macOS MacBook Air Chrome JP Tokyo M3",
             user_agent=(
                 "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_4) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -503,14 +679,73 @@ class FingerprintGenerationConfig:
             timezone="Asia/Tokyo",
             geolocation=(35.6762, 139.6503),
             platform="MacIntel",
+            client_hints_platform_version="14.4.0",
+            client_hints_architecture="arm",
+            client_hints_bitness="64",
+            client_hints_model="",
             hardware_concurrency=10,
             device_memory=8,
             webgl_vendor="Google Inc. (Apple)",
             webgl_renderer="ANGLE (Apple, ANGLE Metal Renderer: Apple M3, Unspecified Version)",
             fonts=("Hiragino Sans", "Helvetica", "Menlo", "Osaka", "Times", "Yu Gothic"),
+            screen_width=1470,
+            screen_height=956,
+            screen_avail_width=1470,
+            screen_avail_height=918,
+            color_depth=30,
+            pixel_depth=30,
+            device_scale_factor=2.0,
+            max_touch_points=0,
+            connection_downlink=18.0,
+            connection_effective_type="4g",
+            connection_rtt=75,
+            connection_save_data=False,
+            connection_type="wifi",
+            battery_charging=False,
+            battery_level=0.68,
+            battery_charging_time=None,
+            battery_discharging_time=18_000,
         ),
         FingerprintPresetConfig(
-            label="Windows Chrome DE Berlin",
+            label="macOS MacBook Pro Chrome UK London M4 Pro",
+            user_agent=(
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_1) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/134.0.0.0 Safari/537.36"
+            ),
+            languages=("en-GB", "en"),
+            timezone="Europe/London",
+            geolocation=(51.507351, -0.127758),
+            platform="MacIntel",
+            client_hints_platform_version="15.1.0",
+            client_hints_architecture="arm",
+            client_hints_bitness="64",
+            client_hints_model="",
+            hardware_concurrency=12,
+            device_memory=8,
+            webgl_vendor="Google Inc. (Apple)",
+            webgl_renderer="ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)",
+            fonts=("Arial", "Helvetica", "Menlo", "Monaco", "Times", "Verdana"),
+            screen_width=1512,
+            screen_height=982,
+            screen_avail_width=1512,
+            screen_avail_height=944,
+            color_depth=30,
+            pixel_depth=30,
+            device_scale_factor=2.0,
+            max_touch_points=0,
+            connection_downlink=26.0,
+            connection_effective_type="4g",
+            connection_rtt=50,
+            connection_save_data=False,
+            connection_type="wifi",
+            battery_charging=True,
+            battery_level=0.88,
+            battery_charging_time=0,
+            battery_discharging_time=None,
+        ),
+        FingerprintPresetConfig(
+            label="Windows laptop Chrome DE Berlin Intel Iris Xe",
             user_agent=(
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -520,14 +755,35 @@ class FingerprintGenerationConfig:
             timezone="Europe/Berlin",
             geolocation=(52.52, 13.405),
             platform="Win32",
+            client_hints_platform_version="10.0.0",
+            client_hints_architecture="x86",
+            client_hints_bitness="64",
+            client_hints_model="",
             hardware_concurrency=12,
             device_memory=8,
             webgl_vendor="Google Inc. (Intel)",
             webgl_renderer="ANGLE (Intel, Intel(R) Iris(R) Xe Graphics Direct3D11 vs_5_0 ps_5_0)",
             fonts=("Arial", "Calibri", "Segoe UI", "Tahoma", "Times New Roman", "Verdana"),
+            screen_width=1536,
+            screen_height=864,
+            screen_avail_width=1536,
+            screen_avail_height=824,
+            color_depth=24,
+            pixel_depth=24,
+            device_scale_factor=1.25,
+            max_touch_points=0,
+            connection_downlink=28.0,
+            connection_effective_type="4g",
+            connection_rtt=50,
+            connection_save_data=False,
+            connection_type="wifi",
+            battery_charging=True,
+            battery_level=0.92,
+            battery_charging_time=0,
+            battery_discharging_time=None,
         ),
         FingerprintPresetConfig(
-            label="Windows Chrome FR Paris",
+            label="Windows desktop Chrome FR Paris AMD RX 6600",
             user_agent=(
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -537,14 +793,35 @@ class FingerprintGenerationConfig:
             timezone="Europe/Paris",
             geolocation=(48.856613, 2.352222),
             platform="Win32",
+            client_hints_platform_version="10.0.0",
+            client_hints_architecture="x86",
+            client_hints_bitness="64",
+            client_hints_model="",
             hardware_concurrency=8,
             device_memory=8,
             webgl_vendor="Google Inc. (AMD)",
             webgl_renderer="ANGLE (AMD, AMD Radeon RX 6600 Direct3D11 vs_5_0 ps_5_0)",
             fonts=("Arial", "Calibri", "Segoe UI", "Tahoma", "Times New Roman", "Verdana"),
+            screen_width=2560,
+            screen_height=1440,
+            screen_avail_width=2560,
+            screen_avail_height=1400,
+            color_depth=24,
+            pixel_depth=24,
+            device_scale_factor=1.0,
+            max_touch_points=0,
+            connection_downlink=42.0,
+            connection_effective_type="4g",
+            connection_rtt=25,
+            connection_save_data=False,
+            connection_type="ethernet",
+            battery_charging=True,
+            battery_level=1.0,
+            battery_charging_time=0,
+            battery_discharging_time=None,
         ),
         FingerprintPresetConfig(
-            label="Linux Chrome US Los Angeles",
+            label="Linux laptop Chrome US Los Angeles Intel UHD",
             user_agent=(
                 "Mozilla/5.0 (X11; Linux x86_64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -554,11 +831,108 @@ class FingerprintGenerationConfig:
             timezone="America/Los_Angeles",
             geolocation=(34.052235, -118.243683),
             platform="Linux x86_64",
+            client_hints_platform_version="",
+            client_hints_architecture="x86",
+            client_hints_bitness="64",
+            client_hints_model="",
             hardware_concurrency=8,
             device_memory=8,
             webgl_vendor="Google Inc. (Intel)",
             webgl_renderer="ANGLE (Intel, Mesa Intel(R) UHD Graphics 620, OpenGL 4.6)",
             fonts=("Arial", "DejaVu Sans", "Liberation Sans", "Noto Sans", "Ubuntu"),
+            screen_width=1920,
+            screen_height=1080,
+            screen_avail_width=1920,
+            screen_avail_height=1048,
+            color_depth=24,
+            pixel_depth=24,
+            device_scale_factor=1.0,
+            max_touch_points=0,
+            connection_downlink=20.0,
+            connection_effective_type="4g",
+            connection_rtt=75,
+            connection_save_data=False,
+            connection_type="wifi",
+            battery_charging=False,
+            battery_level=0.63,
+            battery_charging_time=None,
+            battery_discharging_time=14_400,
+        ),
+        FingerprintPresetConfig(
+            label="Windows desktop Chrome US Chicago NVIDIA RTX 4070",
+            user_agent=(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/134.0.0.0 Safari/537.36"
+            ),
+            languages=("en-US", "en", "ru-RU", "ru"),
+            timezone="America/Chicago",
+            geolocation=(41.878113, -87.629799),
+            platform="Win32",
+            client_hints_platform_version="10.0.0",
+            client_hints_architecture="x86",
+            client_hints_bitness="64",
+            client_hints_model="",
+            hardware_concurrency=16,
+            device_memory=8,
+            webgl_vendor="Google Inc. (NVIDIA)",
+            webgl_renderer="ANGLE (NVIDIA GeForce RTX 4070 Direct3D11 vs_5_0 ps_5_0)",
+            fonts=("Arial", "Calibri", "Cambria", "Segoe UI", "Tahoma", "Times New Roman"),
+            screen_width=2560,
+            screen_height=1440,
+            screen_avail_width=2560,
+            screen_avail_height=1400,
+            color_depth=24,
+            pixel_depth=24,
+            device_scale_factor=1.0,
+            max_touch_points=0,
+            connection_downlink=55.0,
+            connection_effective_type="4g",
+            connection_rtt=25,
+            connection_save_data=False,
+            connection_type="ethernet",
+            battery_charging=True,
+            battery_level=1.0,
+            battery_charging_time=0,
+            battery_discharging_time=None,
+        ),
+        FingerprintPresetConfig(
+            label="macOS MacBook Pro Chrome US San Francisco M5",
+            user_agent=(
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 26_0) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/134.0.0.0 Safari/537.36"
+            ),
+            languages=("en-US", "en"),
+            timezone="America/Los_Angeles",
+            geolocation=(37.774929, -122.419416),
+            platform="MacIntel",
+            client_hints_platform_version="26.0.0",
+            client_hints_architecture="arm",
+            client_hints_bitness="64",
+            client_hints_model="",
+            hardware_concurrency=10,
+            device_memory=8,
+            webgl_vendor="Google Inc. (Apple)",
+            webgl_renderer="ANGLE (Apple, ANGLE Metal Renderer: Apple M5, Unspecified Version)",
+            fonts=("Arial", "Helvetica", "Menlo", "Monaco", "Times", "Verdana"),
+            screen_width=1512,
+            screen_height=982,
+            screen_avail_width=1512,
+            screen_avail_height=944,
+            color_depth=30,
+            pixel_depth=30,
+            device_scale_factor=2.0,
+            max_touch_points=0,
+            connection_downlink=24.0,
+            connection_effective_type="4g",
+            connection_rtt=50,
+            connection_save_data=False,
+            connection_type="wifi",
+            battery_charging=False,
+            battery_level=0.81,
+            battery_charging_time=None,
+            battery_discharging_time=24_000,
         ),
     )
 

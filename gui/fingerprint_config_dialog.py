@@ -38,6 +38,28 @@ class FingerprintConfigDialog(QDialog):
 
         self.user_agent_edit = QLineEdit(config.user_agent or "")
         self.user_agent_edit.setPlaceholderText("Mozilla/5.0 ...")
+        self.client_hints_platform_version_edit = QLineEdit(
+            config.client_hints_platform_version or ""
+        )
+        self.client_hints_platform_version_edit.setPlaceholderText("10.0.0")
+        self.client_hints_architecture_combo = QComboBox()
+        self.client_hints_architecture_combo.addItem(_("Browser default"), None)
+        for architecture in APP_CONFIG.fingerprint_validation.client_hint_architectures:
+            self.client_hints_architecture_combo.addItem(architecture, architecture)
+        self.client_hints_architecture_combo.setCurrentIndex(
+            max(
+                self.client_hints_architecture_combo.findData(config.client_hints_architecture),
+                0,
+            )
+        )
+        self.client_hints_bitness_combo = QComboBox()
+        self.client_hints_bitness_combo.addItem(_("Browser default"), None)
+        for bitness in APP_CONFIG.fingerprint_validation.client_hint_bitness_values:
+            self.client_hints_bitness_combo.addItem(bitness, bitness)
+        self.client_hints_bitness_combo.setCurrentIndex(
+            max(self.client_hints_bitness_combo.findData(config.client_hints_bitness), 0)
+        )
+        self.client_hints_model_edit = QLineEdit(config.client_hints_model or "")
 
         self.languages_edit = QLineEdit(", ".join(config.spoof_languages))
         self.languages_edit.setPlaceholderText("en-US, en")
@@ -116,6 +138,46 @@ class FingerprintConfigDialog(QDialog):
             self.platform_combo.addItem(platform_name, platform_name)
         self.platform_combo.setCurrentIndex(max(self.platform_combo.findData(config.platform), 0))
 
+        self.screen_width_spin = QSpinBox()
+        self.screen_width_spin.setRange(0, APP_CONFIG.fingerprint_validation.screen_size_max)
+        self.screen_width_spin.setSpecialValueText(_("Browser default"))
+        self.screen_width_spin.setValue(config.screen_width or 0)
+        self.screen_height_spin = QSpinBox()
+        self.screen_height_spin.setRange(0, APP_CONFIG.fingerprint_validation.screen_size_max)
+        self.screen_height_spin.setSpecialValueText(_("Browser default"))
+        self.screen_height_spin.setValue(config.screen_height or 0)
+        self.screen_avail_width_spin = QSpinBox()
+        self.screen_avail_width_spin.setRange(0, APP_CONFIG.fingerprint_validation.screen_size_max)
+        self.screen_avail_width_spin.setSpecialValueText(_("Browser default"))
+        self.screen_avail_width_spin.setValue(config.screen_avail_width or 0)
+        self.screen_avail_height_spin = QSpinBox()
+        self.screen_avail_height_spin.setRange(0, APP_CONFIG.fingerprint_validation.screen_size_max)
+        self.screen_avail_height_spin.setSpecialValueText(_("Browser default"))
+        self.screen_avail_height_spin.setValue(config.screen_avail_height or 0)
+        self.color_depth_spin = QSpinBox()
+        self.color_depth_spin.setRange(0, APP_CONFIG.fingerprint_validation.color_depth_max)
+        self.color_depth_spin.setSpecialValueText(_("Browser default"))
+        self.color_depth_spin.setValue(config.color_depth or 0)
+        self.pixel_depth_spin = QSpinBox()
+        self.pixel_depth_spin.setRange(0, APP_CONFIG.fingerprint_validation.color_depth_max)
+        self.pixel_depth_spin.setSpecialValueText(_("Browser default"))
+        self.pixel_depth_spin.setValue(config.pixel_depth or 0)
+        self.device_scale_factor_spin = QDoubleSpinBox()
+        self.device_scale_factor_spin.setRange(
+            0,
+            APP_CONFIG.fingerprint_validation.device_scale_factor_max,
+        )
+        self.device_scale_factor_spin.setSpecialValueText(_("Browser default"))
+        self.device_scale_factor_spin.setSingleStep(0.25)
+        self.device_scale_factor_spin.setDecimals(2)
+        self.device_scale_factor_spin.setValue(config.device_scale_factor or 0)
+        self.max_touch_points_spin = QSpinBox()
+        self.max_touch_points_spin.setRange(
+            APP_CONFIG.fingerprint_validation.max_touch_points_min,
+            APP_CONFIG.fingerprint_validation.max_touch_points_max,
+        )
+        self.max_touch_points_spin.setValue(config.max_touch_points or 0)
+
         self.tls_profile_combo = QComboBox()
         self.tls_profile_combo.addItem(_("No TLS profile"), None)
         for profile_name in APP_CONFIG.fingerprint_validation.tls_profiles:
@@ -137,6 +199,72 @@ class FingerprintConfigDialog(QDialog):
         self.spoof_battery_check = QCheckBox(_("Spoof battery"))
         self.spoof_battery_check.setChecked(config.spoof_battery)
 
+        self.connection_downlink_spin = QDoubleSpinBox()
+        self.connection_downlink_spin.setRange(
+            -1,
+            APP_CONFIG.fingerprint_validation.connection_downlink_max,
+        )
+        self.connection_downlink_spin.setSpecialValueText(_("Browser default"))
+        self.connection_downlink_spin.setSingleStep(1)
+        self.connection_downlink_spin.setDecimals(2)
+        self.connection_downlink_spin.setValue(
+            config.connection_downlink if config.connection_downlink is not None else -1
+        )
+        self.connection_effective_type_combo = QComboBox()
+        self.connection_effective_type_combo.addItem(_("Browser default"), None)
+        for effective_type in APP_CONFIG.fingerprint_validation.connection_effective_types:
+            self.connection_effective_type_combo.addItem(effective_type, effective_type)
+        self.connection_effective_type_combo.setCurrentIndex(
+            max(
+                self.connection_effective_type_combo.findData(config.connection_effective_type),
+                0,
+            )
+        )
+        self.connection_rtt_spin = QSpinBox()
+        self.connection_rtt_spin.setRange(-1, APP_CONFIG.fingerprint_validation.connection_rtt_max)
+        self.connection_rtt_spin.setSpecialValueText(_("Browser default"))
+        self.connection_rtt_spin.setValue(
+            config.connection_rtt if config.connection_rtt is not None else -1
+        )
+        self.connection_save_data_check = QCheckBox(_("Save-Data enabled"))
+        self.connection_save_data_check.setChecked(config.connection_save_data)
+        self.connection_type_combo = QComboBox()
+        self.connection_type_combo.addItem(_("Browser default"), None)
+        for connection_type in APP_CONFIG.fingerprint_validation.connection_types:
+            self.connection_type_combo.addItem(connection_type, connection_type)
+        self.connection_type_combo.setCurrentIndex(
+            max(self.connection_type_combo.findData(config.connection_type), 0)
+        )
+
+        self.battery_charging_check = QCheckBox(_("Battery charging"))
+        self.battery_charging_check.setChecked(config.battery_charging)
+        self.battery_level_spin = QDoubleSpinBox()
+        self.battery_level_spin.setRange(
+            APP_CONFIG.fingerprint_validation.battery_level_min,
+            APP_CONFIG.fingerprint_validation.battery_level_max,
+        )
+        self.battery_level_spin.setSingleStep(0.01)
+        self.battery_level_spin.setDecimals(2)
+        self.battery_level_spin.setValue(config.battery_level)
+        self.battery_charging_time_spin = QSpinBox()
+        self.battery_charging_time_spin.setRange(
+            -1,
+            APP_CONFIG.fingerprint_validation.battery_time_max,
+        )
+        self.battery_charging_time_spin.setSpecialValueText(_("Infinity"))
+        self.battery_charging_time_spin.setValue(
+            config.battery_charging_time if config.battery_charging_time is not None else -1
+        )
+        self.battery_discharging_time_spin = QSpinBox()
+        self.battery_discharging_time_spin.setRange(
+            -1,
+            APP_CONFIG.fingerprint_validation.battery_time_max,
+        )
+        self.battery_discharging_time_spin.setSpecialValueText(_("Infinity"))
+        self.battery_discharging_time_spin.setValue(
+            config.battery_discharging_time if config.battery_discharging_time is not None else -1
+        )
+
         self.before_js_edit = QLineEdit(" | ".join(config.custom_js_before_load))
         self.before_js_edit.setPlaceholderText(_("Separate scripts with |"))
         self.after_js_edit = QLineEdit(" | ".join(config.custom_js_after_load))
@@ -151,6 +279,10 @@ class FingerprintConfigDialog(QDialog):
 
         self._add_section(form, _("User-Agent / Locale"))
         form.addRow(_("User-Agent"), self.user_agent_edit)
+        form.addRow(_("Client hints platform version"), self.client_hints_platform_version_edit)
+        form.addRow(_("Client hints architecture"), self.client_hints_architecture_combo)
+        form.addRow(_("Client hints bitness"), self.client_hints_bitness_combo)
+        form.addRow(_("Client hints model"), self.client_hints_model_edit)
         form.addRow(_("Languages"), self.languages_edit)
         form.addRow(_("Locale"), self.locale_edit)
 
@@ -178,6 +310,14 @@ class FingerprintConfigDialog(QDialog):
         form.addRow(_("Hardware concurrency"), self.hardware_spin)
         form.addRow(_("Device memory"), self.device_memory_combo)
         form.addRow(_("Platform"), self.platform_combo)
+        form.addRow(_("Screen width"), self.screen_width_spin)
+        form.addRow(_("Screen height"), self.screen_height_spin)
+        form.addRow(_("Available screen width"), self.screen_avail_width_spin)
+        form.addRow(_("Available screen height"), self.screen_avail_height_spin)
+        form.addRow(_("Color depth"), self.color_depth_spin)
+        form.addRow(_("Pixel depth"), self.pixel_depth_spin)
+        form.addRow(_("Device scale factor"), self.device_scale_factor_spin)
+        form.addRow(_("Max touch points"), self.max_touch_points_spin)
 
         self._add_section(form, _("TLS / Network"))
         form.addRow(_("TLS profile"), self.tls_profile_combo)
@@ -189,9 +329,18 @@ class FingerprintConfigDialog(QDialog):
         self._add_section(form, _("Feature Detection"))
         form.addRow(self.spoof_touch_check)
         form.addRow(self.spoof_connection_check)
+        form.addRow(_("Connection downlink"), self.connection_downlink_spin)
+        form.addRow(_("Connection effective type"), self.connection_effective_type_combo)
+        form.addRow(_("Connection RTT"), self.connection_rtt_spin)
+        form.addRow(self.connection_save_data_check)
+        form.addRow(_("Connection type"), self.connection_type_combo)
         form.addRow(self.spoof_permissions_check)
         form.addRow(self.spoof_feature_detection_check)
         form.addRow(self.spoof_battery_check)
+        form.addRow(self.battery_charging_check)
+        form.addRow(_("Battery level"), self.battery_level_spin)
+        form.addRow(_("Battery charging time"), self.battery_charging_time_spin)
+        form.addRow(_("Battery discharging time"), self.battery_discharging_time_spin)
 
         self._add_section(form, _("Content Filter"))
         form.addRow(self.hide_adblock_check)
@@ -235,6 +384,31 @@ class FingerprintConfigDialog(QDialog):
 
     def to_config(self) -> FingerprintConfig:
         hardware_concurrency = self.hardware_spin.value() or None
+        screen_width = self.screen_width_spin.value() or None
+        screen_height = self.screen_height_spin.value() or None
+        screen_avail_width = self.screen_avail_width_spin.value() or None
+        screen_avail_height = self.screen_avail_height_spin.value() or None
+        color_depth = self.color_depth_spin.value() or None
+        pixel_depth = self.pixel_depth_spin.value() or None
+        device_scale_factor = self.device_scale_factor_spin.value() or None
+        connection_downlink = (
+            self.connection_downlink_spin.value()
+            if self.connection_downlink_spin.value() >= 0
+            else None
+        )
+        connection_rtt = (
+            self.connection_rtt_spin.value() if self.connection_rtt_spin.value() >= 0 else None
+        )
+        battery_charging_time = (
+            self.battery_charging_time_spin.value()
+            if self.battery_charging_time_spin.value() >= 0
+            else None
+        )
+        battery_discharging_time = (
+            self.battery_discharging_time_spin.value()
+            if self.battery_discharging_time_spin.value() >= 0
+            else None
+        )
         geolocation = None
         if self.geolocation_check.isChecked():
             geolocation = (self.latitude_spin.value(), self.longitude_spin.value())
@@ -245,6 +419,11 @@ class FingerprintConfigDialog(QDialog):
             spoof_plugins=self.spoof_plugins_check.isChecked(),
             spoof_languages=_split_csv(self.languages_edit.text()),
             user_agent=self.user_agent_edit.text().strip() or None,
+            client_hints_platform_version=self.client_hints_platform_version_edit.text().strip()
+            or None,
+            client_hints_architecture=self.client_hints_architecture_combo.currentData(),
+            client_hints_bitness=self.client_hints_bitness_combo.currentData(),
+            client_hints_model=self.client_hints_model_edit.text().strip() or None,
             canvas_mode=str(self.canvas_mode_combo.currentData() or "noise"),
             canvas_noise_level=self.canvas_noise_spin.value(),
             canvas_noise_seed=getattr(self._config, "canvas_noise_seed", None),
@@ -260,13 +439,30 @@ class FingerprintConfigDialog(QDialog):
             hardware_concurrency=hardware_concurrency,
             device_memory=self.device_memory_combo.currentData(),
             platform=self.platform_combo.currentData(),
+            screen_width=screen_width,
+            screen_height=screen_height,
+            screen_avail_width=screen_avail_width,
+            screen_avail_height=screen_avail_height,
+            color_depth=color_depth,
+            pixel_depth=pixel_depth,
+            device_scale_factor=device_scale_factor,
+            max_touch_points=self.max_touch_points_spin.value(),
             tls_profile=self.tls_profile_combo.currentData(),
             spoof_touch_support=self.spoof_touch_check.isChecked(),
             spoof_connection=self.spoof_connection_check.isChecked(),
             spoof_permissions=self.spoof_permissions_check.isChecked(),
             spoof_feature_detection=self.spoof_feature_detection_check.isChecked(),
+            connection_downlink=connection_downlink,
+            connection_effective_type=self.connection_effective_type_combo.currentData(),
+            connection_rtt=connection_rtt,
+            connection_save_data=self.connection_save_data_check.isChecked(),
+            connection_type=self.connection_type_combo.currentData(),
             hide_adblock_signs=self.hide_adblock_check.isChecked(),
             spoof_battery=self.spoof_battery_check.isChecked(),
+            battery_charging=self.battery_charging_check.isChecked(),
+            battery_level=self.battery_level_spin.value(),
+            battery_charging_time=battery_charging_time,
+            battery_discharging_time=battery_discharging_time,
             custom_js_before_load=_split_pipe(self.before_js_edit.text()),
             custom_js_after_load=_split_pipe(self.after_js_edit.text()),
         ).ensure_canvas_noise_seed()

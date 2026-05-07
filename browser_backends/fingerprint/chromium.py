@@ -18,6 +18,7 @@ from models.fingerprint_config import FingerprintConfig
 from .audio import _build_audio_patch
 from .canvas import _build_canvas_patch
 from .content_filter import _build_content_filter_patch
+from .device import _build_device_patch
 from .features_detection import _build_features_detection_patch
 from .fonts import _build_font_patch
 from .geolocation import _build_geolocation_patch
@@ -47,6 +48,10 @@ def _configure_chromium_options(options: ChromeOptions, config: FingerprintConfi
     elif config.webrtc_mode in {"proxy_dns", "public_ip_only"}:
         logger.info("Configuring Chromium WebRTC IP handling policy: %s", config.webrtc_mode)
         options.add_argument(APP_CONFIG.chromium_extensions.disable_non_proxied_udp_argument)
+
+    device_scale_factor = getattr(config, "device_scale_factor", None)
+    if device_scale_factor is not None:
+        options.add_argument(f"--force-device-scale-factor={device_scale_factor}")
 
 
 def _configure_chromium_fingerprint_extension(
@@ -250,6 +255,10 @@ def _build_chromium_fingerprint_script(config: FingerprintConfig) -> str:
 
     if config.webgl_vendor or config.webgl_renderer:
         patches.append(_build_webgl_patch(config))
+
+    device_patch = _build_device_patch(config)
+    if device_patch:
+        patches.append(device_patch)
 
     features_detection_patch = _build_features_detection_patch(config)
     if features_detection_patch:

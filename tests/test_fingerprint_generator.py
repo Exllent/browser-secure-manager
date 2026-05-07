@@ -12,7 +12,17 @@ class FingerprintGeneratorTest(unittest.TestCase):
 
             self.assertIsNotNone(config.user_agent)
             self.assertIsNotNone(config.canvas_noise_seed)
+            self.assertIsNotNone(config.screen_width)
+            self.assertIsNotNone(config.screen_height)
+            self.assertIsNotNone(config.connection_effective_type)
             self.assertEqual(config.validate(), [])
+
+            if "Windows NT" in config.user_agent:
+                self.assertIn(config.platform, {"Win32", "Win64"})
+                self.assertNotIn("Apple", config.webgl_renderer or "")
+            if "Macintosh" in config.user_agent:
+                self.assertEqual(config.platform, "MacIntel")
+                self.assertNotIn("Direct3D", config.webgl_renderer or "")
 
     def test_generated_configs_get_different_canvas_seeds(self) -> None:
         seeds = {generate_fingerprint_config().canvas_noise_seed for _ in range(20)}

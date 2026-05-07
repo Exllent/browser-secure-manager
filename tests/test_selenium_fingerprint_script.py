@@ -187,10 +187,9 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
         self.assertIn("HTMLCanvasElement.prototype.toDataURL", script)
         self.assertIn("HTMLCanvasElement.prototype.toBlob", script)
         self.assertIn("OffscreenCanvas.prototype.convertToBlob", script)
-        self.assertIn("secureBrowserStableImageData", script)
-        self.assertIn("secureBrowserStableHTMLCanvasForExport", script)
         self.assertIn("__secureBrowserCanvasExportPatched", script)
-        self.assertIn("secureBrowserStableOffscreenCanvasForExport", script)
+        self.assertIn("copyCanvasWithNoise", script)
+        self.assertIn("applyCanvasFingerprint(imageData)", script)
         self.assertIn('"seed": 123456789', script)
         self.assertIn("WEBGL_debug_renderer_info", script)
         self.assertIn("WebGLRenderingContext", script)
@@ -204,8 +203,7 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
         self.assertIn("secureBrowserPatchWorkerConstructor('Worker')", script)
         self.assertIn("secureBrowserPatchWorkerConstructor('SharedWorker')", script)
         self.assertIn("secureBrowserWorkerFingerprintScript", script)
-        self.assertIn("worker-getImageData", script)
-        self.assertIn("worker-offscreen-export", script)
+        self.assertIn("secureBrowserWorkerCanvas2DPatched", script)
         self.assertIn("HTMLElement.prototype, 'offsetWidth'", script)
         self.assertIn("HTMLElement.prototype, 'offsetHeight'", script)
         self.assertIn("Element.prototype.getBoundingClientRect", script)
@@ -236,6 +234,7 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
             "audio.js",
             "canvas.js",
             "content_filter.js",
+            "device.js",
             "features_core.js",
             "fonts.js",
             "geolocation.js",
@@ -251,7 +250,7 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
         )
 
     def test_script_contains_headless_audio_and_content_filter_patches(self) -> None:
-        script = _build_chromium_fingerprint_script(FingerprintConfig())
+        script = _build_chromium_fingerprint_script(FingerprintConfig(hide_adblock_signs=True))
 
         self.assertIn("secureBrowserStripHeadless", script)
         self.assertIn("secureBrowserAudioNoiseSeed", script)
@@ -275,7 +274,15 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
         self.assertNotIn("secureBrowserAdBlockBaitPattern", script)
 
     def test_script_contains_features_detection_patch(self) -> None:
-        script = _build_chromium_fingerprint_script(FingerprintConfig())
+        script = _build_chromium_fingerprint_script(
+            FingerprintConfig(
+                connection_downlink=22.0,
+                connection_effective_type="4g",
+                connection_rtt=50,
+                connection_type="wifi",
+                battery_level=0.74,
+            )
+        )
 
         self.assertIn("secureBrowserFeatureDetectionProfile", script)
         self.assertIn("Navigator.prototype", script)
@@ -293,8 +300,29 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
         self.assertIn("RTCPeerConnection", script)
         self.assertIn("Navigator.prototype, 'maxTouchPoints'", script)
         self.assertIn("Navigator.prototype, 'connection'", script)
+        self.assertIn('"downlink": 22.0', script)
+        self.assertIn('"type": "wifi"', script)
         self.assertIn("Navigator.prototype.getBattery", script)
+        self.assertIn("level: 0.74", script)
         self.assertIn("navigator.permissions.query", script)
+
+    def test_script_contains_screen_device_patch_when_configured(self) -> None:
+        script = _build_chromium_fingerprint_script(
+            FingerprintConfig(
+                screen_width=1512,
+                screen_height=982,
+                screen_avail_width=1512,
+                screen_avail_height=944,
+                color_depth=30,
+                pixel_depth=30,
+                device_scale_factor=2.0,
+            )
+        )
+
+        self.assertIn("secureBrowserDeviceConfig", script)
+        self.assertIn("Screen.prototype", script)
+        self.assertIn("'devicePixelRatio'", script)
+        self.assertIn('"screenWidth": 1512', script)
 
     def test_script_contains_geolocation_patch_when_configured(self) -> None:
         script = _build_chromium_fingerprint_script(
@@ -365,6 +393,26 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
         self.assertIn("Navigator.prototype, 'userAgentData'", script)
         self.assertIn('"platform": "macOS"', script)
         self.assertIn("getHighEntropyValues", script)
+
+    def test_client_hint_metadata_uses_manual_device_values(self) -> None:
+        config = FingerprintConfig(
+            user_agent=(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/134.0.0.0 Safari/537.36"
+            ),
+            platform="Win32",
+            client_hints_platform_version="15.0.0",
+            client_hints_architecture="x86",
+            client_hints_bitness="64",
+            client_hints_model="Workstation",
+        )
+
+        metadata = _build_user_agent_metadata(config)
+
+        self.assertIsNotNone(metadata)
+        self.assertEqual(metadata["platformVersion"], "15.0.0")  # type: ignore[index]
+        self.assertEqual(metadata["model"], "Workstation")  # type: ignore[index]
 
     def test_webrtc_leak_prevent_extension_is_loaded_by_default(self) -> None:
         extension_path = _webrtc_leak_prevent_extension_path()
