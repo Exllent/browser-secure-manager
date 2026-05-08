@@ -192,6 +192,7 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
         self.assertIn("__secureBrowserCanvasExportPatched", script)
         self.assertIn("copyCanvasWithNoise", script)
         self.assertIn("applyCanvasFingerprint(imageData)", script)
+        self.assertGreaterEqual(script.count("data[alphaIndex] === 0"), 2)
         self.assertIn('"seed": ', script)
         self.assertNotIn('"seed": 123456789', script)
         self.assertIn("WEBGL_debug_renderer_info", script)

@@ -47,6 +47,8 @@
             state = secureBrowserNextCanvasState(state);
             const pixelIndex = state % pixelCount;
             state = secureBrowserNextCanvasState(state);
+            const alphaIndex = (pixelIndex * 4) + 3;
+            if (alphaIndex >= data.length || data[alphaIndex] === 0) continue;
             const channel = (pixelIndex * 4) + (state % 3);
             if (channel >= data.length) continue;
             const direction = ((state >>> 8) & 1) ? 1 : -1;
