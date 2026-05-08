@@ -30,10 +30,125 @@ def _build_core_features_patch(config: FingerprintConfig) -> str:
         {
             "doNotTrack": getattr(config, "do_not_track", None),
             "globalPrivacyControl": getattr(config, "global_privacy_control", False),
+            "modernizr": _modernizr_profile(config),
+            "platformKind": _platform_kind(config),
             "webrtcMode": getattr(config, "webrtc_mode", "proxy_dns"),
             "webrtcSupported": getattr(config, "webrtc_mode", "proxy_dns") != "disable",
         },
     )
+
+
+def _modernizr_profile(config: FingerprintConfig) -> dict[str, object]:
+    platform_kind = _platform_kind(config)
+    max_touch_points = int(getattr(config, "max_touch_points", None) or 0)
+    connection_type = str(getattr(config, "connection_type", None) or "wifi")
+    battery_level = float(getattr(config, "battery_level", 1.0) or 1.0)
+    is_mobile_like = max_touch_points > 0
+    is_battery_low = battery_level <= 0.2
+
+    profile: dict[str, object] = {
+        "batteryapi": _has_battery_api(config, platform_kind),
+        "capture": is_mobile_like,
+        "devicemotion": is_mobile_like,
+        "deviceorientation": is_mobile_like,
+        "effectiveType": True,
+        "fileinputdirectory": platform_kind in {"windows", "macos"},
+        "forcetouch": platform_kind == "macos",
+        "hovermq": not is_mobile_like,
+        "lowbandwidth": connection_type == "cellular",
+        "lowbattery": is_battery_low,
+        "pointermq": True,
+        "quotamanagement": platform_kind != "linux",
+        "speechrecognition": platform_kind in {"windows", "macos"},
+        "vibrate": is_mobile_like,
+        "websqldatabase": False,
+    }
+
+    if platform_kind == "macos":
+        profile.update(
+            {
+                "audio": {
+                    "m4a": "probably",
+                    "mp3": "probably",
+                    "ogg": "probably",
+                    "opus": "probably",
+                    "wav": "probably",
+                },
+                "video": {
+                    "av1": "probably",
+                    "h264": "probably",
+                    "h265": "maybe",
+                    "hls": "probably",
+                    "ogg": "probably",
+                    "vp9": "probably",
+                    "webm": "probably",
+                },
+            }
+        )
+    elif platform_kind == "windows":
+        profile.update(
+            {
+                "audio": {
+                    "m4a": "probably",
+                    "mp3": "probably",
+                    "ogg": "probably",
+                    "opus": "probably",
+                    "wav": "probably",
+                },
+                "video": {
+                    "av1": "probably",
+                    "h264": "probably",
+                    "h265": "",
+                    "hls": "",
+                    "ogg": "probably",
+                    "vp9": "probably",
+                    "webm": "probably",
+                },
+            }
+        )
+    else:
+        profile.update(
+            {
+                "audio": {
+                    "m4a": "maybe",
+                    "mp3": "probably",
+                    "ogg": "probably",
+                    "opus": "probably",
+                    "wav": "probably",
+                },
+                "video": {
+                    "av1": "probably",
+                    "h264": "probably",
+                    "h265": "",
+                    "hls": "",
+                    "ogg": "probably",
+                    "vp9": "probably",
+                    "webm": "probably",
+                },
+            }
+        )
+
+    return profile
+
+
+def _platform_kind(config: FingerprintConfig) -> str:
+    platform = str(getattr(config, "platform", "") or "")
+    user_agent = str(getattr(config, "user_agent", "") or "")
+    if platform == "MacIntel" or "Macintosh" in user_agent:
+        return "macos"
+    if platform.startswith("Win") or "Windows NT" in user_agent:
+        return "windows"
+    if platform.startswith("Linux") or "Linux" in user_agent or "X11" in user_agent:
+        return "linux"
+    return "unknown"
+
+
+def _has_battery_api(config: FingerprintConfig, platform_kind: str) -> bool:
+    if getattr(config, "battery_discharging_time", None) is not None:
+        return True
+    if platform_kind == "macos":
+        return True
+    return bool(getattr(config, "battery_charging", True))
 
 
 def _build_touch_support_patch(config: FingerprintConfig) -> str:

@@ -1,8 +1,15 @@
 const secureBrowserFontConfig = __SECURE_BROWSER_CONFIG__;
 const secureBrowserFonts = new Set(secureBrowserFontConfig.fonts);
 const secureBrowserKnownFonts = new Set(secureBrowserFontConfig.knownFonts);
+const secureBrowserFontPlatform = String(secureBrowserFontConfig.platform || '');
 const secureBrowserKnownFontList = Array.from(secureBrowserKnownFonts)
     .sort((first, second) => second.length - first.length);
+const secureBrowserFontPlatformSalt = (() => {
+    if (secureBrowserFontPlatform === 'MacIntel') return 29;
+    if (secureBrowserFontPlatform.startsWith('Win')) return 17;
+    if (secureBrowserFontPlatform.startsWith('Linux')) return 23;
+    return 19;
+})();
 const splitFontFamilyList = (value) => {
     const families = [];
     let current = '';
@@ -66,6 +73,62 @@ const fontSignal = (families) => {
     let total = 0;
     for (const char of profileFamily) total += char.charCodeAt(0);
     return (total % 9) + 3;
+};
+const fontMetricHash = (text, family, axis) => {
+    let state = secureBrowserFontPlatformSalt + axis;
+    for (const char of `${text}|${family}|${axis}`) {
+        state = (Math.imul(state ^ char.charCodeAt(0), 16777619)) >>> 0;
+    }
+    return state;
+};
+const fontMetricFamilies = (element) => {
+    try {
+        if (!element || !element.style || !element.style.fontFamily) return [];
+        return normalizeFontFamily(element.style.fontFamily);
+    } catch (error) {
+        return [];
+    }
+};
+const fontMetricSize = (element) => {
+    try {
+        const inlineSize = String(element.style && element.style.fontSize || '');
+        const computedSize = window.getComputedStyle ? getComputedStyle(element).fontSize : '';
+        const parsed = parseFloat(inlineSize || computedSize);
+        return Number.isFinite(parsed) && parsed > 0 ? parsed : 16;
+    } catch (error) {
+        return 16;
+    }
+};
+const fontMetricText = (element) => {
+    const text = String(element && element.textContent || '');
+    return text || 'A';
+};
+const fallbackFontMetric = (element, axis) => {
+    const size = fontMetricSize(element);
+    const text = fontMetricText(element);
+    if (axis === 'width') {
+        return Math.max(1, Math.round(text.length * size * (0.51 + secureBrowserFontPlatformSalt / 1000)));
+    }
+    return Math.max(1, Math.round(size * (1.08 + secureBrowserFontPlatformSalt / 1000)));
+};
+const profileFontMetric = (element, family, axis) => {
+    const size = fontMetricSize(element);
+    const text = fontMetricText(element);
+    const signal = fontSignal([family]);
+    const hash = fontMetricHash(text, family, axis);
+    if (axis === 'width') {
+        const ratio = 0.48 + ((hash % 23) / 100) + (signal / 100);
+        return Math.max(1, Math.round(text.length * size * ratio));
+    }
+    const ratio = 1.0 + (((hash >>> 8) % 18) / 100) + (signal / 120);
+    return Math.max(1, Math.round(size * ratio));
+};
+const fontMetricValue = (element, axis, nativeValue) => {
+    const families = fontMetricFamilies(element);
+    if (!families.length) return nativeValue;
+    const profileFamily = families.find((family) => secureBrowserFonts.has(family));
+    if (profileFamily) return profileFontMetric(element, profileFamily, axis);
+    return fallbackFontMetric(element, axis);
 };
 const withMaskedFontsReplaced = (element, callback) => {
     const families = familiesFromElement(element);
@@ -206,3 +269,17 @@ if (window.CanvasRenderingContext2D) {
         }
     });
 }
+
+const patchFontMetric = (prototype, property, axis) => {
+    if (!prototype) return;
+    const descriptor = Object.getOwnPropertyDescriptor(prototype, property);
+    if (!descriptor || !descriptor.get) return;
+    Object.defineProperty(prototype, property, {
+        get() {
+            return fontMetricValue(this, axis, descriptor.get.call(this));
+        },
+        configurable: true
+    });
+};
+patchFontMetric(HTMLElement.prototype, 'offsetWidth', 'width');
+patchFontMetric(HTMLElement.prototype, 'offsetHeight', 'height');

@@ -17,5 +17,6 @@ def _build_font_patch(config: FingerprintConfig) -> str:
         {
             "fonts": fonts,
             "knownFonts": sorted(set(fonts) | KNOWN_FONT_FAMILIES),
+            "platform": config.platform,
         },
     )

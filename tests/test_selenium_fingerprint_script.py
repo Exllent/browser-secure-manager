@@ -24,6 +24,7 @@ from browser_backends.selenium_backend import (
 )
 from models.browser_config import BrowserConfig
 from models.fingerprint_config import FingerprintConfig
+from models.fingerprint_generator import FINGERPRINT_PRESETS, generate_fingerprint_config
 from models.proxy_config import ProxyConfig
 from models.session_entry import SessionEntry
 
@@ -189,9 +190,10 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
         self.assertIn("HTMLCanvasElement.prototype.toDataURL", script)
         self.assertIn("HTMLCanvasElement.prototype.toBlob", script)
         self.assertIn("OffscreenCanvas.prototype.convertToBlob", script)
-        self.assertIn("__secureBrowserCanvasExportPatched", script)
         self.assertIn("copyCanvasWithNoise", script)
         self.assertIn("applyCanvasFingerprint(imageData)", script)
+        self.assertIn("secureBrowserCanvasMinFingerprintPixels", script)
+        self.assertIn("pixelCount < secureBrowserCanvasMinFingerprintPixels", script)
         self.assertGreaterEqual(script.count("data[alphaIndex] === 0"), 2)
         self.assertIn('"seed": ', script)
         self.assertNotIn('"seed": 123456789', script)
@@ -220,13 +222,21 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
         self.assertIn("secureBrowserPatchWorkerConstructor('Worker')", script)
         self.assertIn("secureBrowserPatchWorkerConstructor('SharedWorker')", script)
         self.assertIn("secureBrowserWorkerFingerprintScript", script)
-        self.assertIn("secureBrowserWorkerCanvas2DPatched", script)
         self.assertIn("Object.create(PluginArray.prototype)", script)
         self.assertIn("Object.create(MimeTypeArray.prototype)", script)
         self.assertIn("Navigator.prototype, 'plugins'", script)
         self.assertIn("Navigator.prototype, 'mimeTypes'", script)
         self.assertIn("Element.prototype.getBoundingClientRect", script)
         self.assertIn("Element.prototype.getClientRects", script)
+        self.assertNotIn("__secureBrowserCanvas", script)
+        self.assertNotIn("__secureBrowserCapturedCanvas", script)
+        self.assertNotIn("__secureBrowserOffscreenCanvas", script)
+        self.assertNotIn("__secureBrowserWebGLGetContextPatched", script)
+        self.assertNotIn("__secureBrowserWebGLToDataURLPatched", script)
+        self.assertNotIn("__secureBrowserWebGLToBlobPatched", script)
+        self.assertNotIn("__secureBrowserWebGLConvertToBlobPatched", script)
+        self.assertNotIn("__secureBrowserWorkerCanvas", script)
+        self.assertNotIn("__secureBrowserWorkerConvertToBlobPatched", script)
         self.assertNotIn("__SECURE_BROWSER_CONFIG__", script)
         self.assertNotIn("__SECURE_BROWSER_WORKER_SCRIPT__", script)
 
@@ -378,6 +388,7 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
     def test_script_contains_features_detection_patch(self) -> None:
         script = _build_chromium_fingerprint_script(
             FingerprintConfig(
+                platform="MacIntel",
                 connection_downlink=22.0,
                 connection_effective_type="4g",
                 connection_rtt=50,
@@ -394,6 +405,10 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
         self.assertIn("window.chrome", script)
         self.assertIn("patchModernizrResults", script)
         self.assertIn("Object.entries(stableResults)", script)
+        self.assertIn("secureBrowserModernizrProfile", script)
+        self.assertIn('"platformKind": "macos"', script)
+        self.assertIn('"hls": "probably"', script)
+        self.assertIn('"forcetouch": true', script)
         self.assertIn("HTMLAudioElement.prototype", script)
         self.assertIn("HTMLVideoElement.prototype", script)
         self.assertIn("CSS.supports", script)
@@ -408,6 +423,22 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
         self.assertIn("level: 0.74", script)
         self.assertIn("navigator.permissions.query", script)
         self.assertIn("secureBrowserSanitizeIceCandidate", script)
+
+    def test_features_detection_patch_differs_by_device_platform(self) -> None:
+        win_script = _build_chromium_fingerprint_script(
+            generate_fingerprint_config(FINGERPRINT_PRESETS[0])
+        )
+        mac_script = _build_chromium_fingerprint_script(
+            generate_fingerprint_config(FINGERPRINT_PRESETS[1])
+        )
+
+        self.assertNotEqual(win_script, mac_script)
+        self.assertIn('"platformKind": "windows"', win_script)
+        self.assertIn('"forcetouch": false', win_script)
+        self.assertIn('"hls": ""', win_script)
+        self.assertIn('"platformKind": "macos"', mac_script)
+        self.assertIn('"forcetouch": true', mac_script)
+        self.assertIn('"hls": "probably"', mac_script)
 
     def test_script_contains_media_devices_patch(self) -> None:
         script = _build_chromium_fingerprint_script(
@@ -561,6 +592,25 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
         self.assertNotIn("patchModernizrResults", script)
         self.assertNotIn("'pdfViewerEnabled'", script)
         self.assertNotIn("Navigator.prototype.getBattery", script)
+
+    def test_font_metric_patch_uses_device_platform_and_profile_fonts(self) -> None:
+        win_script = _build_chromium_fingerprint_script(
+            generate_fingerprint_config(FINGERPRINT_PRESETS[0])
+        )
+        mac_script = _build_chromium_fingerprint_script(
+            generate_fingerprint_config(FINGERPRINT_PRESETS[1])
+        )
+
+        self.assertNotEqual(win_script, mac_script)
+        self.assertIn('"platform": "Win32"', win_script)
+        self.assertIn('"fonts": ["Arial", "Calibri", "Cambria", "Segoe UI"', win_script)
+        self.assertIn("patchFontMetric(HTMLElement.prototype, 'offsetWidth', 'width')", win_script)
+        self.assertIn(
+            "patchFontMetric(HTMLElement.prototype, 'offsetHeight', 'height')", win_script
+        )
+        self.assertIn('"platform": "MacIntel"', mac_script)
+        self.assertIn('"fonts": ["Arial", "Helvetica", "Menlo", "Monaco"', mac_script)
+        self.assertIn("fontMetricValue", mac_script)
 
     def test_script_contains_client_hints_patch_for_macos_fingerprint(self) -> None:
         config = FingerprintConfig(

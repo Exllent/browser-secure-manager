@@ -2,6 +2,7 @@ const secureBrowserCanvasConfig = __SECURE_BROWSER_CONFIG__;
 const secureBrowserCanvasNoise = secureBrowserCanvasConfig.noise;
 const secureBrowserCanvasMode = secureBrowserCanvasConfig.mode;
 const secureBrowserCanvasSeed = secureBrowserCanvasConfig.seed >>> 0;
+const secureBrowserCanvasMinFingerprintPixels = 32;
 const secureBrowserCanvasState = (...values) => {
     let state = secureBrowserCanvasSeed || 1;
     for (const value of values) {
@@ -22,6 +23,7 @@ const applyCanvasFingerprint = (imageData) => {
     const height = Math.max(1, Math.floor(Number(imageData.height) || 1));
     const data = imageData.data;
     const pixelCount = Math.max(1, Math.floor(data.length / 4));
+    if (pixelCount < secureBrowserCanvasMinFingerprintPixels) return imageData;
     const patchRatio = Math.max(0.002, Math.min(0.12, secureBrowserCanvasNoise / 255));
     const patchCount = Math.max(1, Math.floor(pixelCount * patchRatio));
     let state = secureBrowserCanvasState(width, height, secureBrowserCanvasMode, secureBrowserCanvasNoise);
@@ -42,9 +44,8 @@ const applyCanvasFingerprint = (imageData) => {
     return imageData;
 };
 
-const patchCanvas2DPrototype = (prototype, markerProperty) => {
-    if (!prototype || prototype[markerProperty] || !prototype.getImageData) return null;
-    Object.defineProperty(prototype, markerProperty, {value: true});
+const patchCanvas2DPrototype = (prototype) => {
+    if (!prototype || !prototype.getImageData) return null;
     const originalGetImageData = prototype.getImageData;
     prototype.getImageData = new Proxy(originalGetImageData, {
         apply(target, thisArg, args) {
@@ -56,12 +57,10 @@ const patchCanvas2DPrototype = (prototype, markerProperty) => {
 };
 
 const originalCanvas2DGetImageData = patchCanvas2DPrototype(
-    window.CanvasRenderingContext2D && CanvasRenderingContext2D.prototype,
-    '__secureBrowserCanvas2DPatched'
+    window.CanvasRenderingContext2D && CanvasRenderingContext2D.prototype
 );
 const originalOffscreen2DGetImageData = patchCanvas2DPrototype(
-    window.OffscreenCanvasRenderingContext2D && OffscreenCanvasRenderingContext2D.prototype,
-    '__secureBrowserOffscreenCanvas2DPatched'
+    window.OffscreenCanvasRenderingContext2D && OffscreenCanvasRenderingContext2D.prototype
 );
 
 const copyCanvasWithNoise = (canvas, offscreen = false) => {
@@ -85,24 +84,20 @@ const copyCanvasWithNoise = (canvas, offscreen = false) => {
     return clone;
 };
 
-if (!HTMLCanvasElement.prototype.__secureBrowserCanvasExportPatched) {
-    Object.defineProperty(HTMLCanvasElement.prototype, '__secureBrowserCanvasExportPatched', {value: true});
-    const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
-    HTMLCanvasElement.prototype.toDataURL = new Proxy(originalToDataURL, {
-        apply(target, thisArg, args) {
-            try {
-                const clone = copyCanvasWithNoise(thisArg);
-                if (clone) return Reflect.apply(target, clone, args);
-            } catch (error) {
-            }
-            return Reflect.apply(target, thisArg, args);
+const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
+HTMLCanvasElement.prototype.toDataURL = new Proxy(originalToDataURL, {
+    apply(target, thisArg, args) {
+        try {
+            const clone = copyCanvasWithNoise(thisArg);
+            if (clone) return Reflect.apply(target, clone, args);
+        } catch (error) {
         }
-    });
-}
+        return Reflect.apply(target, thisArg, args);
+    }
+});
 
 const originalToBlob = HTMLCanvasElement.prototype.toBlob;
-if (originalToBlob && !HTMLCanvasElement.prototype.__secureBrowserCanvasBlobPatched) {
-    Object.defineProperty(HTMLCanvasElement.prototype, '__secureBrowserCanvasBlobPatched', {value: true});
+if (originalToBlob) {
     HTMLCanvasElement.prototype.toBlob = new Proxy(originalToBlob, {
         apply(target, thisArg, args) {
             try {
@@ -117,17 +112,14 @@ if (originalToBlob && !HTMLCanvasElement.prototype.__secureBrowserCanvasBlobPatc
 
 if (window.OffscreenCanvas && OffscreenCanvas.prototype.convertToBlob) {
     const originalCanvasConvertToBlob = OffscreenCanvas.prototype.convertToBlob;
-    if (!OffscreenCanvas.prototype.__secureBrowserCanvasConvertToBlobPatched) {
-        Object.defineProperty(OffscreenCanvas.prototype, '__secureBrowserCanvasConvertToBlobPatched', {value: true});
-        OffscreenCanvas.prototype.convertToBlob = new Proxy(originalCanvasConvertToBlob, {
-            apply(target, thisArg, args) {
-                try {
-                    const clone = copyCanvasWithNoise(thisArg, true);
-                    if (clone) return Reflect.apply(target, clone, args);
-                } catch (error) {
-                }
-                return Reflect.apply(target, thisArg, args);
+    OffscreenCanvas.prototype.convertToBlob = new Proxy(originalCanvasConvertToBlob, {
+        apply(target, thisArg, args) {
+            try {
+                const clone = copyCanvasWithNoise(thisArg, true);
+                if (clone) return Reflect.apply(target, clone, args);
+            } catch (error) {
             }
-        });
-    }
+            return Reflect.apply(target, thisArg, args);
+        }
+    });
 }

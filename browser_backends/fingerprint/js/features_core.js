@@ -10,6 +10,7 @@ const secureBrowserFeatureDetectionProfile = Object.freeze({
     webrtc: secureBrowserFeatureDetectionConfig.webrtcSupported,
     webrtcMode: secureBrowserFeatureDetectionConfig.webrtcMode
 });
+const secureBrowserModernizrProfile = secureBrowserFeatureDetectionConfig.modernizr || {};
 const defineSecureBrowserFeature = (target, property, value) => {
     try {
         Object.defineProperty(target, property, {
@@ -251,31 +252,38 @@ const patchModernizrResults = (modernizr) => {
         typedarrays: true,
         websockets: true,
         websqldatabase: false,
-        webworkers: true
+        webworkers: true,
+        ...secureBrowserModernizrProfile
     };
+    delete stableResults.audio;
+    delete stableResults.video;
     for (const [feature, value] of Object.entries(stableResults)) {
         try {
             modernizr[feature] = value;
         } catch (error) {
         }
     }
+    const audioProfile = secureBrowserModernizrProfile.audio || {};
     try {
         modernizr.audio = Object.assign(new Boolean(true), {
-            m4a: 'probably',
-            mp3: 'probably',
-            ogg: 'probably',
-            opus: 'probably',
-            wav: 'probably'
+            m4a: audioProfile.m4a ?? 'probably',
+            mp3: audioProfile.mp3 ?? 'probably',
+            ogg: audioProfile.ogg ?? 'probably',
+            opus: audioProfile.opus ?? 'probably',
+            wav: audioProfile.wav ?? 'probably'
         });
     } catch (error) {
     }
+    const videoProfile = secureBrowserModernizrProfile.video || {};
     try {
         modernizr.video = Object.assign(new Boolean(true), {
-            h264: 'probably',
-            hls: '',
-            ogg: 'probably',
-            vp9: 'probably',
-            webm: 'probably'
+            av1: videoProfile.av1 ?? 'probably',
+            h264: videoProfile.h264 ?? 'probably',
+            h265: videoProfile.h265 ?? '',
+            hls: videoProfile.hls ?? '',
+            ogg: videoProfile.ogg ?? 'probably',
+            vp9: videoProfile.vp9 ?? 'probably',
+            webm: videoProfile.webm ?? 'probably'
         });
     } catch (error) {
     }

@@ -21,9 +21,8 @@ const secureBrowserWeakWebGLNoise = (pixels, width, height) => {
     return pixels;
 };
 
-const patchWebGLCanvasGetContext = (prototype, markerProperty) => {
-    if (!prototype || prototype[markerProperty] || !prototype.getContext) return;
-    Object.defineProperty(prototype, markerProperty, {value: true});
+const patchWebGLCanvasGetContext = (prototype) => {
+    if (!prototype || !prototype.getContext) return;
     const originalCanvasGetContext = prototype.getContext;
     prototype.getContext = new Proxy(originalCanvasGetContext, {
         apply(target, thisArg, args) {
@@ -36,10 +35,9 @@ const patchWebGLCanvasGetContext = (prototype, markerProperty) => {
         }
     });
 };
-patchWebGLCanvasGetContext(HTMLCanvasElement.prototype, '__secureBrowserWebGLGetContextPatched');
+patchWebGLCanvasGetContext(HTMLCanvasElement.prototype);
 patchWebGLCanvasGetContext(
-    window.OffscreenCanvas && OffscreenCanvas.prototype,
-    '__secureBrowserWebGLOffscreenGetContextPatched'
+    window.OffscreenCanvas && OffscreenCanvas.prototype
 );
 
 const noisyWebGLCanvasDataURL = (canvas, type, quality) => {
@@ -70,23 +68,19 @@ const noisyWebGLCanvasDataURL = (canvas, type, quality) => {
     return output.toDataURL(type, quality);
 };
 
-if (!HTMLCanvasElement.prototype.__secureBrowserWebGLToDataURLPatched) {
-    Object.defineProperty(HTMLCanvasElement.prototype, '__secureBrowserWebGLToDataURLPatched', {value: true});
-    const originalWebGLToDataURL = HTMLCanvasElement.prototype.toDataURL;
-    HTMLCanvasElement.prototype.toDataURL = new Proxy(originalWebGLToDataURL, {
-        apply(target, thisArg, args) {
-            try {
-                const dataUrl = noisyWebGLCanvasDataURL(thisArg, args[0], args[1]);
-                if (dataUrl) return dataUrl;
-            } catch (error) {
-            }
-            return Reflect.apply(target, thisArg, args);
+const originalWebGLToDataURL = HTMLCanvasElement.prototype.toDataURL;
+HTMLCanvasElement.prototype.toDataURL = new Proxy(originalWebGLToDataURL, {
+    apply(target, thisArg, args) {
+        try {
+            const dataUrl = noisyWebGLCanvasDataURL(thisArg, args[0], args[1]);
+            if (dataUrl) return dataUrl;
+        } catch (error) {
         }
-    });
-}
+        return Reflect.apply(target, thisArg, args);
+    }
+});
 
-if (!HTMLCanvasElement.prototype.__secureBrowserWebGLToBlobPatched && HTMLCanvasElement.prototype.toBlob) {
-    Object.defineProperty(HTMLCanvasElement.prototype, '__secureBrowserWebGLToBlobPatched', {value: true});
+if (HTMLCanvasElement.prototype.toBlob) {
     const originalWebGLToBlob = HTMLCanvasElement.prototype.toBlob;
     HTMLCanvasElement.prototype.toBlob = new Proxy(originalWebGLToBlob, {
         apply(target, thisArg, args) {
@@ -109,9 +103,7 @@ if (!HTMLCanvasElement.prototype.__secureBrowserWebGLToBlobPatched && HTMLCanvas
     });
 }
 
-if (window.OffscreenCanvas && OffscreenCanvas.prototype.convertToBlob
-    && !OffscreenCanvas.prototype.__secureBrowserWebGLConvertToBlobPatched) {
-    Object.defineProperty(OffscreenCanvas.prototype, '__secureBrowserWebGLConvertToBlobPatched', {value: true});
+if (window.OffscreenCanvas && OffscreenCanvas.prototype.convertToBlob) {
     const originalWebGLConvertToBlob = OffscreenCanvas.prototype.convertToBlob;
     OffscreenCanvas.prototype.convertToBlob = new Proxy(originalWebGLConvertToBlob, {
         apply(target, thisArg, args) {
