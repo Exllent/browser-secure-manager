@@ -223,6 +223,13 @@ def _validate_browser_binary(
     if not _looks_like_native_binary(path):
         raise RuntimeError(f"{browser_name}: selected file is not a native executable: {path}")
 
+    if _uses_windows_executable_validation():
+        logger.debug(
+            "Skipping version probe for Windows browser executable %s to avoid opening a browser",
+            path,
+        )
+        return
+
     try:
         result = _run_version_command(path)
     except (OSError, subprocess.TimeoutExpired) as exc:
@@ -242,6 +249,10 @@ def _validate_browser_binary(
 
 def _chromium_version_keywords() -> tuple[str, ...]:
     return APP_CONFIG.browser_discovery.version_keywords
+
+
+def _uses_windows_executable_validation() -> bool:
+    return sys.platform == "win32"
 
 
 def _run_version_command(path: Path) -> subprocess.CompletedProcess[str]:
