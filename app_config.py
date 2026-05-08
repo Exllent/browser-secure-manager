@@ -115,6 +115,10 @@ class ChromiumBookmarksConfig:
             "Chrome Headless Test",
             "https://intoli.com/blog/not-possible-to-block-chrome-headless/chrome-headless-test.html",
         ),
+        (
+            "Sannysoft",
+            "https://bot.sannysoft.com/",
+        ),
     )
     url_replacements: tuple[tuple[str, str], ...] = (
         ("https://browserleaks.com/tls", "https://browserleaks.com"),

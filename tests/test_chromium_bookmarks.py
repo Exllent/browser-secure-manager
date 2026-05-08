@@ -6,7 +6,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from app_config import APP_CONFIG
 from browser_backends.chromium_bookmarks import ensure_chromium_default_bookmarks
+
+DEFAULT_BOOKMARKS = APP_CONFIG.bookmarks.default_bookmarks
+DEFAULT_BOOKMARK_URLS = [url for _, url in DEFAULT_BOOKMARKS]
+DEFAULT_TOP_SITES = [(url, index, title) for index, (title, url) in enumerate(DEFAULT_BOOKMARKS)]
 
 
 class ChromiumBookmarksTest(unittest.TestCase):
@@ -23,30 +28,13 @@ class ChromiumBookmarksTest(unittest.TestCase):
             for child in data["roots"]["bookmark_bar"]["children"]
             if child.get("type") == "url"
         }
-        self.assertIn("https://browserleaks.com", urls)
-        self.assertIn("https://httpbin.org/ip", urls)
-        self.assertIn(
-            "https://intoli.com/blog/not-possible-to-block-chrome-headless/chrome-headless-test.html",
-            urls,
-        )
-        self.assertEqual(len(urls), 3)
+        self.assertEqual(urls, set(DEFAULT_BOOKMARK_URLS))
         shortcut_urls = {shortcut["url"] for shortcut in preferences["custom_links"]["list"]}
         self.assertEqual(shortcut_urls, urls)
         self.assertTrue(preferences["custom_links"]["initialized"])
         self.assertTrue(preferences["custom_links"]["preinstalledremoved"])
         self.assertTrue(preferences["ntp"]["shortcuts_visible"])
-        self.assertEqual(
-            top_sites[:3],
-            [
-                ("https://browserleaks.com", 0, "BrowserLeaks"),
-                ("https://httpbin.org/ip", 1, "HTTPBin IP"),
-                (
-                    "https://intoli.com/blog/not-possible-to-block-chrome-headless/chrome-headless-test.html",
-                    2,
-                    "Chrome Headless Test",
-                ),
-            ],
-        )
+        self.assertEqual(top_sites[: len(DEFAULT_TOP_SITES)], DEFAULT_TOP_SITES)
 
     def test_browserleaks_tls_bookmark_is_replaced(self) -> None:
         with tempfile.TemporaryDirectory() as profile_dir:
@@ -127,19 +115,15 @@ class ChromiumBookmarksTest(unittest.TestCase):
             preferences = json.loads(preferences_path.read_text())
 
         shortcuts = preferences["custom_links"]["list"]
-        self.assertEqual(
-            [shortcut["url"] for shortcut in shortcuts],
-            [
-                "https://browserleaks.com",
-                "https://httpbin.org/ip",
-                "https://intoli.com/blog/not-possible-to-block-chrome-headless/chrome-headless-test.html",
-            ],
-        )
+        self.assertEqual([shortcut["url"] for shortcut in shortcuts], DEFAULT_BOOKMARK_URLS)
         self.assertTrue(preferences["custom_links"]["initialized"])
         self.assertTrue(preferences["custom_links"]["preinstalledremoved"])
         self.assertNotIn("custom_links", preferences["ntp"])
         self.assertNotIn("custom_links_initialized", preferences["ntp"])
-        self.assertEqual(preferences["ntp"]["num_personal_suggestions"], 3)
+        self.assertEqual(
+            preferences["ntp"]["num_personal_suggestions"],
+            len(DEFAULT_BOOKMARKS),
+        )
         self.assertTrue(preferences["ntp"]["shortcuts_auto_removal_disabled"])
         self.assertTrue(preferences["ntp"]["shortcuts_visible"])
         self.assertEqual(preferences["homepage"], "about:blank")
@@ -175,16 +159,14 @@ class ChromiumBookmarksTest(unittest.TestCase):
             top_sites = _read_top_sites(Path(profile_dir))
 
         self.assertEqual(
-            top_sites[:4],
+            top_sites[: len(DEFAULT_TOP_SITES) + 1],
             [
-                ("https://browserleaks.com", 0, "BrowserLeaks"),
-                ("https://httpbin.org/ip", 1, "HTTPBin IP"),
+                *DEFAULT_TOP_SITES,
                 (
-                    "https://intoli.com/blog/not-possible-to-block-chrome-headless/chrome-headless-test.html",
-                    2,
-                    "Chrome Headless Test",
+                    "https://chrome.google.com/webstore?hl=en",
+                    len(DEFAULT_TOP_SITES),
+                    "Web Store",
                 ),
-                ("https://chrome.google.com/webstore?hl=en", 3, "Web Store"),
             ],
         )
 
