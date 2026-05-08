@@ -7,12 +7,16 @@ The app stores session metadata in SQLite, keeps a separate browser profile dire
 session, launches browser sessions in child processes, and applies saved browser, proxy,
 window, and fingerprint settings at startup.
 
+The supported runtime platforms are Linux, Windows, and macOS. Browser automation remains
+Chromium-based on every platform.
+
 ## Features
 
 - PySide6 desktop GUI for session management.
 - SQLite persistence in `sessions.sqlite3`.
 - Per-session Chromium profile directories under `profiles/session_<id>`.
-- Chromium-family browser discovery for Chrome, Chromium, Brave, Edge, Vivaldi, and Opera.
+- Chromium-family browser discovery for Chrome, Chromium, Brave, Edge, Vivaldi, and Opera
+  on Linux, Windows, and macOS.
 - Selenium-backed browser launch behind a `BrowserBackend` interface.
 - Child-process session runtime so Selenium startup does not block the GUI thread.
 - HTTP, SOCKS4, and SOCKS5 proxy records with async proxy testing.
@@ -194,6 +198,11 @@ store a display name, enabled flag, Chromium browser type, and executable path. 
 does not find Brave, Edge, Vivaldi, Opera, Chrome, or Chromium, add the executable path
 manually.
 
+Discovery rules live in `browser_backends/browser_discovery.py`. Linux and macOS candidates may
+be probed with a version command. Windows discovery intentionally does not launch `*.exe`
+browser binaries during validation; it checks known install paths and executable headers so a
+scan does not open a normal browser window before Selenium starts the isolated session.
+
 ## Session Settings
 
 Each session has:
@@ -333,6 +342,7 @@ Runtime dependencies are declared in `pyproject.toml`:
 
 - PySide6;
 - Selenium;
+- tzdata on Windows, so `zoneinfo` fingerprint validation has IANA timezone data;
 - websocket-client.
 
 Development tools:

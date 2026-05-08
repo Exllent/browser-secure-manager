@@ -14,6 +14,7 @@ Core stack:
 - Child processes for session launches and lifetime management.
 - Fingerprint profiles stored separately from sessions and applied at browser startup.
 - HTTP, SOCKS4, and SOCKS5 proxy records with proxy testing.
+- Linux, Windows, and macOS runtime support, with Chromium-family browser automation on every platform.
 - English and Russian UI localization only.
 
 Runtime artifacts such as `profiles/`, `logs/`, `sessions.sqlite3`, `.venv/`, `.idea/`, `__pycache__/`, and `.codex` are not source architecture. Do not edit or commit them unless the user explicitly asks.
@@ -189,6 +190,8 @@ It detects Chromium-family browsers:
 - Opera
 
 If browser search rules change, update this module rather than embedding paths in GUI or Selenium code.
+
+Windows-specific rule: do not validate browsers by launching `browser.exe --version`. Some Chromium-family Windows binaries open a normal browser window or return unusable version output. Windows validation should stay path/header based and let Selenium be the first process that launches the selected browser for an isolated session.
 
 ## Chromium Bookmarks And New Tab Shortcuts
 
