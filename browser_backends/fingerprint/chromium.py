@@ -27,7 +27,7 @@ from .headless import _build_headless_patch
 from .media_devices import _build_media_devices_patch
 from .navigator import _build_navigator_patches
 from .speech_voices import _build_speech_voices_patch
-from .user_agent import _build_user_agent_metadata, _build_user_agent_patch
+from .user_agent import _build_user_agent_metadata
 from .webgl import _build_webgl_patch
 from .webgpu import _build_webgpu_patch
 from .workers import (
@@ -262,9 +262,8 @@ def _build_chromium_fingerprint_script(config: FingerprintConfig) -> str:
     if config.hide_headless:
         patches.append(_build_headless_patch())
 
-    user_agent_patch = _build_user_agent_patch(config)
-    if user_agent_patch:
-        patches.append(user_agent_patch)
+    # CDP supplies native User-Agent Client Hints in pages and their workers.
+    # Replacing NavigatorUAData with a plain object breaks its browser API contract.
 
     patches.append(_build_webgpu_patch(config))
 

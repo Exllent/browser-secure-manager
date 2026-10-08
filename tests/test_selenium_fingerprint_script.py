@@ -612,7 +612,7 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
         self.assertIn('"fonts": ["Arial", "Helvetica", "Menlo", "Monaco"', mac_script)
         self.assertIn("fontMetricValue", mac_script)
 
-    def test_script_contains_client_hints_patch_for_macos_fingerprint(self) -> None:
+    def test_client_hints_keep_native_api_and_macos_metadata(self) -> None:
         config = FingerprintConfig(
             user_agent=(
                 "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) "
@@ -629,9 +629,17 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
         self.assertIsNotNone(metadata)
         self.assertEqual(metadata["platform"], "macOS")  # type: ignore[index]
         self.assertEqual(metadata["architecture"], "arm")  # type: ignore[index]
-        self.assertIn("Navigator.prototype, 'userAgentData'", script)
-        self.assertIn('"platform": "macOS"', script)
-        self.assertIn("getHighEntropyValues", script)
+        driver = mock.Mock()
+        _apply_chromium_fingerprint(driver, config)
+        override = next(
+            call.args[1]
+            for call in driver.execute_cdp_cmd.call_args_list
+            if call.args[0] == "Network.setUserAgentOverride"
+        )
+        self.assertEqual(override["userAgentMetadata"], metadata)
+        self.assertNotIn("Navigator.prototype, 'userAgentData'", script)
+        self.assertNotIn("buildUserAgentData", script)
+        self.assertNotIn("buildWorkerUserAgentData", script)
 
     def test_client_hint_metadata_uses_manual_device_values(self) -> None:
         config = FingerprintConfig(
@@ -674,7 +682,7 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
         self.assertIn("patchWorkerNavigatorProperty", script)
         self.assertIn("'userAgent'", script)
         self.assertIn("'platform'", script)
-        self.assertIn("'userAgentData'", script)
+        self.assertNotIn("'userAgentData'", script)
         self.assertIn("'oscpu'", script)
         self.assertIn("secureBrowserPatchWebGPUPrototype", script)
         self.assertIn("requestAdapter", script)
@@ -682,7 +690,6 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
         self.assertIn("secureBrowserWorkerTimezone", script)
         self.assertIn('"timezone": "America/New_York"', script)
         self.assertIn("resolvedOptions", script)
-        self.assertIn('"platform": "Windows"', script)
         self.assertNotIn("GNU/Linux", script)
 
     def test_worker_target_gets_timezone_override(self) -> None:

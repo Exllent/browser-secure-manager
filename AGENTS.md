@@ -306,6 +306,12 @@ Feature Detection has its own file: `browser_backends/fingerprint/features_detec
 
 TLS note: Selenium does not control Chromium's TLS stack. `tls_profile` is metadata unless an external proxy/browser network stack supports the actual TLS behavior.
 
+User-Agent Client Hints are applied through Chromium CDP `Network.setUserAgentOverride`
+with `userAgentMetadata`; child pages and workers inherit the browser override.
+Keep the native `NavigatorUAData` object and its methods. Do not replace
+`navigator.userAgentData` with a plain JavaScript object in page or worker patches:
+that breaks browser type checks, argument validation, and supported entropy hints.
+
 ## Proxies
 
 Proxy model:
@@ -388,6 +394,16 @@ python -m unittest tests.test_profile_cache
 python -m unittest tests.test_selenium_fingerprint_script
 python -m unittest tests.test_chromium_bookmarks
 ```
+
+Native User-Agent Client Hints regression (one temporary headless Chromium profile,
+local HTTP server, no external login):
+
+```bash
+SECURE_BROWSER_LIVE_API=1 python -m unittest tests.test_live_user_agent_api
+```
+
+Optional `SECURE_BROWSER_LIVE_BROWSER` and `SECURE_BROWSER_LIVE_DRIVER` select the
+Chromium executable and ChromeDriver for this check. It is skipped by default.
 
 Use focused tests while iterating, then run full discovery before finalizing code changes when feasible.
 

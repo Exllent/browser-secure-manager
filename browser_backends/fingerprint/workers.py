@@ -6,7 +6,6 @@ from app_config import APP_CONFIG
 from models.fingerprint_config import FingerprintConfig
 
 from .templates import _read_js_template, _render_js_template
-from .user_agent import _build_user_agent_metadata
 from .utils import _canvas_device_seed, _canvas_noise_level, _stable_noise_seed
 from .webgpu import _build_webgpu_patch
 
@@ -58,7 +57,6 @@ def _build_worker_fingerprint_script(config: FingerprintConfig) -> str:
             "platform": config.platform,
             "timezone": config.timezone,
             "userAgent": config.user_agent,
-            "userAgentData": _build_user_agent_metadata(config),
             "webglNoiseSeed": webgl_noise_seed,
             "webglRenderer": config.webgl_renderer or "ANGLE",
             "webglVendor": config.webgl_vendor or "Google Inc.",

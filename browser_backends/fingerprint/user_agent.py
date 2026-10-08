@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import re
 from typing import Any
 
@@ -87,75 +86,3 @@ def _client_hint_architecture(config: FingerprintConfig) -> str:
     if "Apple M" in renderer or "arm" in (config.platform or "").lower():
         return "arm"
     return "x86"
-
-
-def _build_user_agent_patch(config: FingerprintConfig) -> str:
-    if not config.user_agent:
-        return ""
-
-    metadata = _build_user_agent_metadata(config)
-    if metadata is None:
-        return ""
-
-    metadata_json = json.dumps(metadata)
-    user_agent = json.dumps(config.user_agent)
-    app_version = json.dumps(config.user_agent.removeprefix("Mozilla/"))
-    return f"""
-    const secureBrowserUserAgent = {user_agent};
-    const secureBrowserUserAgentData = {metadata_json};
-
-    Object.defineProperty(Navigator.prototype, 'userAgent', {{
-        get: () => secureBrowserUserAgent,
-        configurable: true
-    }});
-
-    Object.defineProperty(Navigator.prototype, 'appVersion', {{
-        get: () => {app_version},
-        configurable: true
-    }});
-
-    Object.defineProperty(Navigator.prototype, 'vendor', {{
-        get: () => 'Google Inc.',
-        configurable: true
-    }});
-
-    Object.defineProperty(Navigator.prototype, 'oscpu', {{
-        get: () => undefined,
-        configurable: true
-    }});
-
-    const buildUserAgentData = () => {{
-        const data = {{
-            brands: secureBrowserUserAgentData.brands.map((brand) => ({{...brand}})),
-            mobile: secureBrowserUserAgentData.mobile,
-            platform: secureBrowserUserAgentData.platform,
-            getHighEntropyValues: async (hints) => {{
-                const allowed = new Set(Array.isArray(hints) ? hints : []);
-                const values = {{
-                    brands: secureBrowserUserAgentData.brands.map((brand) => ({{...brand}})),
-                    mobile: secureBrowserUserAgentData.mobile,
-                    platform: secureBrowserUserAgentData.platform
-                }};
-                for (const key of allowed) {{
-                    if (Object.prototype.hasOwnProperty.call(secureBrowserUserAgentData, key)) {{
-                        values[key] = Array.isArray(secureBrowserUserAgentData[key])
-                            ? secureBrowserUserAgentData[key].map((item) => ({{...item}}))
-                            : secureBrowserUserAgentData[key];
-                    }}
-                }}
-                return values;
-            }},
-            toJSON: () => ({{
-                brands: secureBrowserUserAgentData.brands.map((brand) => ({{...brand}})),
-                mobile: secureBrowserUserAgentData.mobile,
-                platform: secureBrowserUserAgentData.platform
-            }})
-        }};
-        return Object.freeze(data);
-    }};
-
-    Object.defineProperty(Navigator.prototype, 'userAgentData', {{
-        get: buildUserAgentData,
-        configurable: true
-    }});
-    """

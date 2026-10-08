@@ -14,7 +14,6 @@
     const secureBrowserCanvasNoiseSeed = secureBrowserWorkerConfig.canvasNoiseSeed >>> 0;
     const secureBrowserCanvasMinFingerprintPixels = 32;
     const secureBrowserWebGLNoiseSeed = secureBrowserWorkerConfig.webglNoiseSeed;
-    const secureBrowserWorkerUserAgentData = secureBrowserWorkerConfig.userAgentData;
     const secureBrowserWorkerTimezone = secureBrowserWorkerConfig.timezone;
     const fingerprintWebGLDebugInfo = {
         UNMASKED_VENDOR_WEBGL: 37445,
@@ -73,37 +72,6 @@
         }
     };
 
-    const buildWorkerUserAgentData = () => {
-        if (!secureBrowserWorkerUserAgentData) return undefined;
-        const data = {
-            brands: secureBrowserWorkerUserAgentData.brands.map((brand) => ({...brand})),
-            mobile: secureBrowserWorkerUserAgentData.mobile,
-            platform: secureBrowserWorkerUserAgentData.platform,
-            getHighEntropyValues: async (hints) => {
-                const allowed = new Set(Array.isArray(hints) ? hints : []);
-                const values = {
-                    brands: secureBrowserWorkerUserAgentData.brands.map((brand) => ({...brand})),
-                    mobile: secureBrowserWorkerUserAgentData.mobile,
-                    platform: secureBrowserWorkerUserAgentData.platform
-                };
-                for (const key of allowed) {
-                    if (Object.prototype.hasOwnProperty.call(secureBrowserWorkerUserAgentData, key)) {
-                        values[key] = Array.isArray(secureBrowserWorkerUserAgentData[key])
-                            ? secureBrowserWorkerUserAgentData[key].map((item) => ({...item}))
-                            : secureBrowserWorkerUserAgentData[key];
-                    }
-                }
-                return values;
-            },
-            toJSON: () => ({
-                brands: secureBrowserWorkerUserAgentData.brands.map((brand) => ({...brand})),
-                mobile: secureBrowserWorkerUserAgentData.mobile,
-                platform: secureBrowserWorkerUserAgentData.platform
-            })
-        };
-        return Object.freeze(data);
-    };
-
     if (secureBrowserPatchWorkerNavigator && self.navigator) {
         const navigatorPrototype = Object.getPrototypeOf(self.navigator);
         patchWorkerNavigatorProperty(navigatorPrototype, 'userAgent', secureBrowserWorkerConfig.userAgent);
@@ -127,15 +95,6 @@
                 configurable: true
             });
         } catch (error) {
-        }
-        if (secureBrowserWorkerUserAgentData) {
-            try {
-                Object.defineProperty(navigatorPrototype, 'userAgentData', {
-                    get: buildWorkerUserAgentData,
-                    configurable: true
-                });
-            } catch (error) {
-            }
         }
     }
 
