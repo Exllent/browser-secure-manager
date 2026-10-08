@@ -1,60 +1,39 @@
 from __future__ import annotations
 
-import json
-
 from models.fingerprint_config import FingerprintConfig
+
+from .templates import _render_js_template
 
 
 def _build_navigator_patches(config: FingerprintConfig) -> list[str]:
     patches: list[str] = []
 
-    if config.hide_automation:
-        patches.append("""
-            Object.defineProperty(Navigator.prototype, 'webdriver', {
-                get: () => undefined,
-                configurable: true
-            });
-            """)
-
+    # Chromium options already control automation state; keep its boolean API.
+    values: dict[str, object] = {}
     if config.platform:
-        patches.append(f"""
-            Object.defineProperty(Navigator.prototype, 'platform', {{
-                get: () => {json.dumps(config.platform)},
-                configurable: true
-            }});
-            """)
+        values["platform"] = config.platform
 
     languages = config.spoof_languages or config.locale
     if languages:
-        patches.append(f"""
-            Object.defineProperty(Navigator.prototype, 'languages', {{
-                get: () => {json.dumps(languages)},
-                configurable: true
-            }});
-            Object.defineProperty(Navigator.prototype, 'language', {{
-                get: () => {json.dumps(languages[0])},
-                configurable: true
-            }});
-            """)
+        values["languages"] = languages
+        values["language"] = languages[0]
 
     if config.hardware_concurrency is not None:
-        patches.append(f"""
-            Object.defineProperty(Navigator.prototype, 'hardwareConcurrency', {{
-                get: () => {config.hardware_concurrency},
-                configurable: true
-            }});
-            """)
+        values["hardwareConcurrency"] = config.hardware_concurrency
 
     if config.device_memory is not None:
-        patches.append(f"""
-            Object.defineProperty(Navigator.prototype, 'deviceMemory', {{
-                get: () => {config.device_memory},
-                configurable: true
-            }});
-            """)
+        values["deviceMemory"] = config.device_memory
+    if values:
+        patches.append(_render_js_template("navigator_properties.js", values))
 
     if config.spoof_plugins:
         patches.append("""
+            (() => {
+            // Populated Chromium lists already contain PDF viewers. Preserve their
+            // native objects: synthetic instances fail browser method brand checks.
+            if (navigator.plugins && navigator.plugins.length > 0
+                && navigator.mimeTypes && navigator.mimeTypes.length > 0) return;
+
             const secureBrowserDefineReadonly = (target, key, value) => {
                 Object.defineProperty(target, key, {
                     value,
@@ -219,6 +198,7 @@ def _build_navigator_patches(config: FingerprintConfig) -> list[str]:
                 get: () => secureBrowserMimeTypeArray,
                 configurable: true
             });
+            })();
             """)
 
     return patches

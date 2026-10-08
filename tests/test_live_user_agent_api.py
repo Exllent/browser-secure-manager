@@ -33,7 +33,91 @@ async function probeUserAgent() {
         high: await data.getHighEntropyValues([
             'architecture', 'bitness', 'platformVersion', 'fullVersionList', 'formFactors'
         ]),
+        navigatorApis: probeNavigatorApis(),
     };
+}
+
+function probeNavigatorApis() {
+    const prototype = Object.getPrototypeOf(navigator);
+    const fields = ['platform', 'language', 'languages', 'hardwareConcurrency', 'deviceMemory', 'userAgent', 'appVersion', 'cookieEnabled', 'doNotTrack', 'pdfViewerEnabled', 'maxTouchPoints', 'globalPrivacyControl'];
+    const getters = {};
+    for (const field of fields) {
+        const descriptor = Object.getOwnPropertyDescriptor(prototype, field);
+        if (!descriptor || !descriptor.get) continue;
+        let invalidThisError = null;
+        try { descriptor.get.call({}); }
+        catch (error) { invalidThisError = error.name; }
+        getters[field] = {invalidThisError, name: descriptor.get.name};
+    }
+    let invalidJavaReceiver = 'absent';
+    if (navigator.javaEnabled) {
+        invalidJavaReceiver = null;
+        try { navigator.javaEnabled.call({}); }
+        catch (error) { invalidJavaReceiver = error.name; }
+    }
+    let screenApis = null;
+    if (typeof window !== 'undefined') {
+        const getter = Object.getOwnPropertyDescriptor(Screen.prototype, 'width').get;
+        let invalidScreenReceiver = null;
+        try { getter.call({}); } catch (error) { invalidScreenReceiver = error.name; }
+        screenApis = {width: screen.width, height: screen.height, invalidScreenReceiver, getterName: getter.name};
+    }
+    return {
+        getters,
+        invalidJavaReceiver,
+        screenApis,
+        languages: navigator.languages,
+        frozenLanguages: Object.isFrozen(navigator.languages),
+        hardwareConcurrency: navigator.hardwareConcurrency,
+        deviceMemory: navigator.deviceMemory,
+        hasOscpu: 'oscpu' in navigator,
+        webdriver: 'webdriver' in navigator ? navigator.webdriver : 'absent',
+        nativePlatformGetter: Function.prototype.toString.call(Object.getOwnPropertyDescriptor(prototype, 'platform').get),
+    };
+}
+
+function probePluginApis() {
+    const plugins = navigator.plugins;
+    const mimeTypes = navigator.mimeTypes;
+    try {
+        const plugin = PluginArray.prototype.item.call(plugins, 0);
+        const mimeType = MimeTypeArray.prototype.item.call(mimeTypes, 0);
+        return {
+            pluginCount: Object.getOwnPropertyDescriptor(PluginArray.prototype, 'length').get.call(plugins),
+            mimeTypeCount: Object.getOwnPropertyDescriptor(MimeTypeArray.prototype, 'length').get.call(mimeTypes),
+            pluginName: plugin && Object.getOwnPropertyDescriptor(Plugin.prototype, 'name').get.call(plugin),
+            mimeType: mimeType && Object.getOwnPropertyDescriptor(MimeType.prototype, 'type').get.call(mimeType),
+            pluginItemMatches: plugin === plugins.item(0),
+            mimeTypeItemMatches: mimeType === mimeTypes.item(0),
+            pluginNamedItemMatches: plugin === PluginArray.prototype.namedItem.call(plugins, plugin.name),
+            mimeTypeNamedItemMatches: mimeType === MimeTypeArray.prototype.namedItem.call(mimeTypes, mimeType.type),
+        };
+    } catch (error) {
+        return {error: error.name + ': ' + error.message};
+    }
+}
+
+async function probePermissionApis() {
+    const values = {};
+    for (const name of ['notifications', 'geolocation']) {
+        const status = await navigator.permissions.query({name});
+        let prototypeState;
+        try {
+            prototypeState = Object.getOwnPropertyDescriptor(PermissionStatus.prototype, 'state').get.call(status);
+        } catch (error) { prototypeState = error.name; }
+        values[name] = {
+            nativeType: Object.prototype.toString.call(status),
+            nativeInstance: status instanceof PermissionStatus,
+            state: status.state,
+            prototypeState,
+            eventTarget: status instanceof EventTarget,
+            hasOnchange: 'onchange' in status,
+        };
+    }
+    let invalidReceiver;
+    try { await navigator.permissions.query.call({}, {name: 'notifications'}); }
+    catch (error) { invalidReceiver = error.name; }
+    return {values, invalidReceiver};
 }
 """
 
@@ -99,6 +183,12 @@ class LiveUserAgentApiTest(unittest.TestCase):
             client_hints_architecture="x86",
             client_hints_bitness="64",
             spoof_languages=["en-US", "en"],
+            hardware_concurrency=3,
+            device_memory=0.5,
+            screen_width=1366,
+            screen_height=768,
+            screen_avail_width=1366,
+            screen_avail_height=728,
         )
         original_driver = selenium_backend.webdriver.Chrome
 
@@ -126,6 +216,8 @@ class LiveUserAgentApiTest(unittest.TestCase):
                     const done = arguments[0];
                     (async () => ({
                         page: await probeUserAgent(),
+                        plugins: probePluginApis(),
+                        permissions: await probePermissionApis(),
                         headers: await fetch('/headers').then(response => response.json()),
                         classic: await workerProbe('classic'),
                         module: await workerProbe('module'),
@@ -155,6 +247,29 @@ class LiveUserAgentApiTest(unittest.TestCase):
                     }
                     """)
                 self.assertNotIn("error", snapshot, snapshot)
+                permissions = snapshot["permissions"]
+                self.assertEqual(permissions["invalidReceiver"], "TypeError")
+                for name, status in permissions["values"].items():
+                    with self.subTest(permission=name):
+                        self.assertEqual(status["nativeType"], "[object PermissionStatus]")
+                        self.assertTrue(status["nativeInstance"])
+                        self.assertTrue(status["eventTarget"])
+                        self.assertTrue(status["hasOnchange"])
+                        self.assertIn(status["state"], ("prompt", "denied", "granted"))
+                        self.assertEqual(status["state"], status["prototypeState"])
+                plugins = snapshot["plugins"]
+                self.assertNotIn("error", plugins, plugins)
+                self.assertGreater(plugins["pluginCount"], 0)
+                self.assertGreater(plugins["mimeTypeCount"], 0)
+                self.assertEqual(plugins["pluginName"], "PDF Viewer")
+                self.assertEqual(plugins["mimeType"], "application/pdf")
+                for field in (
+                    "pluginItemMatches",
+                    "mimeTypeItemMatches",
+                    "pluginNamedItemMatches",
+                    "mimeTypeNamedItemMatches",
+                ):
+                    self.assertTrue(plugins[field], plugins)
                 for surface in ("page", "classic", "module", "iframe"):
                     with self.subTest(surface=surface):
                         value = snapshot[surface]
@@ -171,6 +286,26 @@ class LiveUserAgentApiTest(unittest.TestCase):
                             self.assertEqual(value["platform"], "Win32")
                             self.assertEqual(value["high"]["platformVersion"], "15.0.0")
                             self.assertIn("formFactors", value["high"])
+                            navigator_apis = value["navigatorApis"]
+                            self.assertEqual(navigator_apis["hardwareConcurrency"], 3)
+                            self.assertEqual(navigator_apis["deviceMemory"], 0.5)
+                            self.assertEqual(navigator_apis["languages"], ["en-US", "en"])
+                            self.assertTrue(navigator_apis["frozenLanguages"])
+                            self.assertFalse(navigator_apis["hasOscpu"])
+                            self.assertIn("[native code]", navigator_apis["nativePlatformGetter"])
+                            expected_webdriver = False if surface == "page" else "absent"
+                            self.assertEqual(navigator_apis["webdriver"], expected_webdriver)
+                            if surface == "page":
+                                self.assertEqual(navigator_apis["invalidJavaReceiver"], "TypeError")
+                                screen_apis = navigator_apis["screenApis"]
+                                self.assertEqual(screen_apis["width"], 1366)
+                                self.assertEqual(screen_apis["height"], 768)
+                                self.assertEqual(screen_apis["invalidScreenReceiver"], "TypeError")
+                                self.assertEqual(screen_apis["getterName"], "get width")
+                            for field, getter in navigator_apis["getters"].items():
+                                with self.subTest(surface=surface, getter=field):
+                                    self.assertEqual(getter["invalidThisError"], "TypeError")
+                                    self.assertEqual(getter["name"], "get " + field)
                 self.assertEqual(snapshot["headers"]["user-agent"], config.user_agent)
                 self.assertEqual(snapshot["headers"]["sec-ch-ua-platform"], '"Windows"')
                 self.assertEqual(snapshot["headers"]["sec-ch-ua-platform-version"], '"15.0.0"')

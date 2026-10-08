@@ -153,12 +153,7 @@ def _has_battery_api(config: FingerprintConfig, platform_kind: str) -> bool:
 
 def _build_touch_support_patch(config: FingerprintConfig) -> str:
     max_touch_points = getattr(config, "max_touch_points", None) or 0
-    return """
-    Object.defineProperty(Navigator.prototype, 'maxTouchPoints', {
-        get: () => %s,
-        configurable: true
-    });
-    """ % max_touch_points
+    return _render_js_template("navigator_properties.js", {"maxTouchPoints": max_touch_points})
 
 
 def _build_connection_patch(config: FingerprintConfig) -> str:
@@ -234,21 +229,5 @@ def _build_battery_patch(config: FingerprintConfig) -> str:
 
 
 def _build_permissions_patch(config: FingerprintConfig) -> str:
-    geolocation_state = "granted" if config.geolocation is not None else ""
-    return """
-    if (navigator.permissions && navigator.permissions.query) {
-        const secureBrowserPermissionStates = new Map(Object.entries({
-            geolocation: "%s"
-        }).filter((entry) => entry[1]));
-        const originalPermissionsQuery = navigator.permissions.query.bind(navigator.permissions);
-        navigator.permissions.query = (parameters) => {
-            if (parameters && secureBrowserPermissionStates.has(parameters.name)) {
-                return Promise.resolve({state: secureBrowserPermissionStates.get(parameters.name)});
-            }
-            if (parameters && parameters.name === 'notifications') {
-                return Promise.resolve({state: Notification.permission});
-            }
-            return originalPermissionsQuery(parameters);
-        };
-    }
-    """ % geolocation_state
+    states = {"geolocation": "granted"} if config.geolocation is not None else {}
+    return _render_js_template("permissions.js", states)

@@ -346,6 +346,8 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
             "geolocation.js",
             "headless.js",
             "media_devices.js",
+            "navigator_properties.js",
+            "permissions.js",
             "speech_voices.js",
             "webgl.js",
             "webgpu.js",
@@ -415,7 +417,7 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
         self.assertIn("localstorage: true", script)
         self.assertIn("peerconnection: secureBrowserFeatureDetectionProfile.webrtc", script)
         self.assertIn("RTCPeerConnection", script)
-        self.assertIn("Navigator.prototype, 'maxTouchPoints'", script)
+        self.assertIn('"maxTouchPoints": 0', script)
         self.assertIn("Navigator.prototype, 'connection'", script)
         self.assertIn('"downlink": 22.0', script)
         self.assertIn('"type": "wifi"', script)
@@ -542,7 +544,7 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
         self.assertIn("Navigator.prototype, 'geolocation'", script)
         self.assertIn('"latitude": 55.755826', script)
         self.assertIn('"longitude": 37.6173', script)
-        self.assertIn('geolocation: "granted"', script)
+        self.assertIn('"geolocation": "granted"', script)
 
     def test_apply_chromium_fingerprint_grants_geolocation_permission(self) -> None:
         driver = mock.Mock()
@@ -679,11 +681,11 @@ class SeleniumFingerprintScriptTest(unittest.TestCase):
             )
         )
 
-        self.assertIn("patchWorkerNavigatorProperty", script)
-        self.assertIn("'userAgent'", script)
-        self.assertIn("'platform'", script)
+        self.assertIn("secureBrowserNavigatorValues", script)
+        self.assertIn('"userAgent": ', script)
+        self.assertIn('"platform": "Win32"', script)
         self.assertNotIn("'userAgentData'", script)
-        self.assertIn("'oscpu'", script)
+        self.assertNotIn("'oscpu'", script)
         self.assertIn("secureBrowserPatchWebGPUPrototype", script)
         self.assertIn("requestAdapter", script)
         self.assertIn("'gpu'", script)

@@ -39,37 +39,33 @@ def _build_worker_fingerprint_script(config: FingerprintConfig) -> str:
     worker_script = _render_js_template(
         "worker_fingerprint.js",
         {
-            "appVersion": (
-                config.user_agent.removeprefix("Mozilla/") if config.user_agent else None
-            ),
             "canvasMode": config.canvas_mode,
             "canvasNoise": canvas_noise,
             "canvasNoiseSeed": _canvas_device_seed(config),
-            "deviceMemory": config.device_memory,
             "fonts": fonts,
-            "hardwareConcurrency": config.hardware_concurrency,
-            "language": languages[0] if languages else None,
-            "languages": languages,
             "patchCanvas": config.canvas_mode in {"noise", "fixed"},
             "patchFonts": bool(config.font_list or config.font_spoof_count),
-            "patchNavigator": _needs_worker_navigator_patch(config),
             "patchWebGL": bool(config.webgl_vendor or config.webgl_renderer),
-            "platform": config.platform,
             "timezone": config.timezone,
-            "userAgent": config.user_agent,
             "webglNoiseSeed": webgl_noise_seed,
             "webglRenderer": config.webgl_renderer or "ANGLE",
             "webglVendor": config.webgl_vendor or "Google Inc.",
         },
     )
-    return _build_webgpu_patch(config) + "\n" + worker_script
-
-
-def _needs_worker_navigator_patch(config: FingerprintConfig) -> bool:
-    return (
-        bool(config.user_agent)
-        or bool(config.platform)
-        or bool(config.spoof_languages or config.locale)
-        or config.hardware_concurrency is not None
-        or config.device_memory is not None
+    navigator_values: dict[str, object] = {}
+    if config.user_agent:
+        navigator_values["userAgent"] = config.user_agent
+        navigator_values["appVersion"] = config.user_agent.removeprefix("Mozilla/")
+    if config.platform:
+        navigator_values["platform"] = config.platform
+    if languages:
+        navigator_values["languages"] = languages
+        navigator_values["language"] = languages[0]
+    if config.hardware_concurrency is not None:
+        navigator_values["hardwareConcurrency"] = config.hardware_concurrency
+    if config.device_memory is not None:
+        navigator_values["deviceMemory"] = config.device_memory
+    navigator_script = (
+        _render_js_template("navigator_properties.js", navigator_values) if navigator_values else ""
     )
+    return "\n".join([_build_webgpu_patch(config), navigator_script, worker_script])

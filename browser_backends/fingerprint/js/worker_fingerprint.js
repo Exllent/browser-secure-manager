@@ -7,7 +7,6 @@
     const secureBrowserPatchWorkerCanvas = secureBrowserWorkerConfig.patchCanvas;
     const secureBrowserPatchWorkerWebGL = secureBrowserWorkerConfig.patchWebGL;
     const secureBrowserPatchWorkerFonts = secureBrowserWorkerConfig.patchFonts;
-    const secureBrowserPatchWorkerNavigator = secureBrowserWorkerConfig.patchNavigator;
     const secureBrowserCanvasNoise = secureBrowserWorkerConfig.canvasNoise;
     const secureBrowserCanvasMode = secureBrowserWorkerConfig.canvasMode;
     const secureBrowserWorkerFonts = new Set(secureBrowserWorkerConfig.fonts);
@@ -60,43 +59,6 @@
         }
         return imageData;
     };
-
-    const patchWorkerNavigatorProperty = (target, property, value) => {
-        if (!target || value === null || value === undefined) return;
-        try {
-            Object.defineProperty(target, property, {
-                get: () => value,
-                configurable: true
-            });
-        } catch (error) {
-        }
-    };
-
-    if (secureBrowserPatchWorkerNavigator && self.navigator) {
-        const navigatorPrototype = Object.getPrototypeOf(self.navigator);
-        patchWorkerNavigatorProperty(navigatorPrototype, 'userAgent', secureBrowserWorkerConfig.userAgent);
-        patchWorkerNavigatorProperty(navigatorPrototype, 'appVersion', secureBrowserWorkerConfig.appVersion);
-        patchWorkerNavigatorProperty(navigatorPrototype, 'platform', secureBrowserWorkerConfig.platform);
-        patchWorkerNavigatorProperty(navigatorPrototype, 'languages', secureBrowserWorkerConfig.languages);
-        patchWorkerNavigatorProperty(navigatorPrototype, 'language', secureBrowserWorkerConfig.language);
-        patchWorkerNavigatorProperty(
-            navigatorPrototype,
-            'hardwareConcurrency',
-            secureBrowserWorkerConfig.hardwareConcurrency
-        );
-        patchWorkerNavigatorProperty(
-            navigatorPrototype,
-            'deviceMemory',
-            secureBrowserWorkerConfig.deviceMemory
-        );
-        try {
-            Object.defineProperty(navigatorPrototype, 'oscpu', {
-                get: () => undefined,
-                configurable: true
-            });
-        } catch (error) {
-        }
-    }
 
     if (secureBrowserWorkerTimezone && self.Intl && Intl.DateTimeFormat) {
         const originalResolvedOptions = Intl.DateTimeFormat.prototype.resolvedOptions;

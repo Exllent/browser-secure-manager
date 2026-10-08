@@ -265,6 +265,8 @@ Current JS templates:
 - `geolocation.js`
 - `headless.js`
 - `media_devices.js`
+- `navigator_properties.js`
+- `permissions.js`
 - `speech_voices.js`
 - `webgl.js`
 - `webgpu.js`
@@ -311,6 +313,19 @@ with `userAgentMetadata`; child pages and workers inherit the browser override.
 Keep the native `NavigatorUAData` object and its methods. Do not replace
 `navigator.userAgentData` with a plain JavaScript object in page or worker patches:
 that breaks browser type checks, argument validation, and supported entropy hints.
+When Chromium supplies populated plugin and MIME type lists, preserve those native
+objects too. Synthetic objects with matching prototypes still fail native
+`PluginArray`, `MimeTypeArray`, `Plugin`, and `MimeType` method/getter brand checks.
+Navigator and WorkerNavigator overrides share `navigator_properties.js`. Keep a
+native getter when its value already matches the profile; otherwise preserve its
+descriptor and receiver validation. Language overrides remain frozen arrays.
+Feature Detection and Screen overrides follow the same getter contract and leave
+matching native values intact.
+Chromium options supply the automation boolean; do not overwrite `webdriver`
+with `undefined` or introduce Chromium's absent `oscpu` property.
+Permission overrides keep native `PermissionStatus` objects and their EventTarget
+APIs. Map Notification's `default` value to permission state `prompt`; it is not
+a valid PermissionStatus state.
 
 ## Proxies
 
@@ -395,7 +410,7 @@ python -m unittest tests.test_selenium_fingerprint_script
 python -m unittest tests.test_chromium_bookmarks
 ```
 
-Native User-Agent Client Hints regression (one temporary headless Chromium profile,
+Native User-Agent Client Hints and plugin API regression (one temporary headless Chromium profile,
 local HTTP server, no external login):
 
 ```bash

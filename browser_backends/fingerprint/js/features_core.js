@@ -13,8 +13,26 @@ const secureBrowserFeatureDetectionProfile = Object.freeze({
 const secureBrowserModernizrProfile = secureBrowserFeatureDetectionConfig.modernizr || {};
 const defineSecureBrowserFeature = (target, property, value) => {
     try {
+        const descriptor = Object.getOwnPropertyDescriptor(target, property);
+        if (descriptor && typeof descriptor.get === 'function'
+            && Reflect.apply(descriptor.get, navigator, []) === value) return;
+        const getter = descriptor && typeof descriptor.get === 'function'
+            ? new Proxy(descriptor.get, {
+                apply(nativeGetter, receiver, args) {
+                    Reflect.apply(nativeGetter, receiver, args);
+                    return value;
+                }
+            })
+            : Object.getOwnPropertyDescriptor({
+                get [property]() {
+                    const brandGetter = Object.getOwnPropertyDescriptor(Navigator.prototype, 'platform').get;
+                    Reflect.apply(brandGetter, this, []);
+                    return value;
+                }
+            }, property).get;
         Object.defineProperty(target, property, {
-            get: () => value,
+            ...(descriptor || {enumerable: true}),
+            get: getter,
             configurable: true
         });
     } catch (error) {
@@ -52,7 +70,16 @@ defineSecureBrowserFeature(
     secureBrowserFeatureDetectionProfile.pdfViewerEnabled
 );
 try {
-    Navigator.prototype.javaEnabled = () => secureBrowserFeatureDetectionProfile.javaEnabled;
+    const originalJavaEnabled = Navigator.prototype.javaEnabled;
+    if (originalJavaEnabled && Reflect.apply(originalJavaEnabled, navigator, [])
+        !== secureBrowserFeatureDetectionProfile.javaEnabled) {
+        Navigator.prototype.javaEnabled = new Proxy(originalJavaEnabled, {
+            apply(target, receiver, args) {
+                Reflect.apply(target, receiver, args);
+                return secureBrowserFeatureDetectionProfile.javaEnabled;
+            }
+        });
+    }
 } catch (error) {
 }
 
