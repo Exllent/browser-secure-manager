@@ -336,6 +336,17 @@ python -m unittest tests.test_selenium_fingerprint_script
 python -m unittest tests.test_chromium_bookmarks
 ```
 
+Live fingerprint matrix check:
+
+```bash
+SECURE_BROWSER_LIVE_FINGERPRINT=1 python -m unittest tests.test_live_fingerprint_matrix
+```
+
+This launches ten temporary isolated Chromium profiles and visits BrowserLeaks Canvas,
+WebGL, Fonts, Features, Proxy, and Sannysoft. Use `SECURE_BROWSER_LIVE_BROWSER` to force a
+specific Chromium executable. The live check is skipped during normal `unittest discover`
+runs because it opens real browser windows and depends on external sites.
+
 ## Dependencies
 
 Runtime dependencies are declared in `pyproject.toml`:
