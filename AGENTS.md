@@ -45,7 +45,7 @@ Keep responsibilities separated:
 - `browser_backends/`: browser backend protocol, Selenium implementation, browser discovery, Chromium extension setup, Chromium bookmark/shortcut profile preparation.
 - `browser_backends/fingerprint/`: fingerprint-specific Chromium option, CDP, extension, and JavaScript patch builders.
 - `browser_extensions/`: static extension assets, currently WebRTC leak prevention.
-- `services/`: supporting non-GUI business logic, currently proxy testing.
+- `services/`: supporting non-GUI business logic, including proxy testing and the session-owned authenticated SOCKS5 bridge.
 - `app_config.py`: frozen dataclass configuration tree for source-controlled constants such as paths, storage defaults, backup format, browser discovery candidates, proxy test targets, fingerprint options, GUI sizes, and localization filenames. Runtime code reads from `APP_CONFIG`; do not introduce new mutable module-level settings for these concerns.
 - `translations/`: only `app_ru.ts` and `app_ru.qm` are expected. English is the source/default language.
 - `tests/`: unittest test suite.
@@ -81,7 +81,7 @@ Launch flow:
 1. `MainWindow.open_session()` receives a row state.
 2. `AppService.open_session()` saves the session, loads selected browser/proxy/fingerprint configs, and starts `SessionProcessManager`.
 3. `SessionProcessManager.start_session()` spawns a child process using multiprocessing `spawn`.
-4. The child process validates proxy if selected, creates a local `SeleniumBrowserBackend`, opens the browser, and emits IPC events.
+4. The child process validates proxy if selected, starts a local bridge for SOCKS5 with credentials, creates a local `SeleniumBrowserBackend`, opens the browser, and emits IPC events.
 5. GUI polls events with a `QTimer` every 500 ms and updates row status/log tooltips.
 
 Do not move Selenium startup back into the GUI thread. Startup must remain process-based.
@@ -318,6 +318,17 @@ Proxy UI:
 
 Proxy testing:
 - `services/proxy_tester.py`
+- `services/socks5_transport.py`: shared SOCKS5 tunnel negotiation and username/password authentication.
+
+Authenticated SOCKS5:
+- Chromium does not support SOCKS5 username/password authentication directly.
+- `services/socks5_bridge.py` runs a TCP-only SOCKS5 bridge inside each session child process, using standard Python sockets and threads.
+- Each bridge binds only to `127.0.0.1` on an OS-assigned port. Chromium receives a temporary credential-free local proxy config; persisted proxy records are unchanged.
+- Browser target domains are passed unchanged to the upstream SOCKS5 proxy. Only the upstream proxy hostname may be resolved locally.
+- Each browser connection uses its own upstream connection. Buffers, connection count, handshake timeouts, and shutdown timing are bounded through `APP_CONFIG.socks5_bridge`.
+- The bridge forwards opaque TCP bytes, without TLS interception, UDP support, or direct-network fallback. Existing HTTP, SOCKS4, unauthenticated SOCKS5, DNS rules, and WebRTC behavior are unchanged.
+- The session runner closes the browser and then the bridge on exit, including browser startup failure. Forced session process termination also releases bridge sockets.
+- Do not log credentials or traffic contents. No system proxy settings or external proxy services are required.
 
 Supported proxy types:
 - `http`

@@ -319,6 +319,17 @@ class ProxyConfigDefaults:
 
 
 @dataclass(frozen=True, slots=True)
+class Socks5BridgeConfig:
+    listen_host: str = "127.0.0.1"
+    handshake_seconds: float = 5.0
+    connect_seconds: float = 5.0
+    poll_seconds: float = 0.1
+    shutdown_seconds: float = 0.5
+    max_connections: int = 128
+    buffer_bytes: int = 65536
+
+
+@dataclass(frozen=True, slots=True)
 class FingerprintValidationConfig:
     canvas_modes: tuple[str, ...] = ("noise", "fixed", "passthrough", "captured")
     webrtc_modes: tuple[str, ...] = ("disable", "public_ip_only", "proxy_dns", "passthrough")
@@ -1231,6 +1242,7 @@ class AppConfig:
     chromium_extensions: ChromiumExtensionConfig = field(default_factory=ChromiumExtensionConfig)
     browser_discovery: BrowserDiscoveryConfig = field(default_factory=BrowserDiscoveryConfig)
     proxies: ProxyConfigDefaults = field(default_factory=ProxyConfigDefaults)
+    socks5_bridge: Socks5BridgeConfig = field(default_factory=Socks5BridgeConfig)
     fingerprint_validation: FingerprintValidationConfig = field(
         default_factory=FingerprintValidationConfig
     )

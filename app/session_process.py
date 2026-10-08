@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from app.i18n import _
 from app.logging_config import SESSION_LOG_DIR, configure_logging
 from app_config import APP_CONFIG
 from browser_backends.selenium_backend import SeleniumBrowserBackend
@@ -17,6 +18,7 @@ from models.fingerprint_config import FingerprintConfig
 from models.proxy_config import ProxyConfig
 from models.session_entry import SessionEntry
 from services.proxy_tester import test_proxy
+from services.socks5_bridge import Socks5Bridge
 
 logger = logging.getLogger(__name__)
 
@@ -258,6 +260,7 @@ def _run_browser_session_process(
     assert session.id is not None
     _configure_child_logging(session.id, event_queue, log_path)
     backend = SeleniumBrowserBackend()
+    bridge: Socks5Bridge | None = None
     child_logger = logging.getLogger(__name__)
 
     try:
@@ -271,7 +274,16 @@ def _run_browser_session_process(
                     f"Error: {proxy_result.message}"
                 )
 
-        backend.open_session(session, browser_config, proxy_config, fingerprint_config)
+        browser_proxy = proxy_config
+        if (
+            proxy_config is not None
+            and proxy_config.normalized_type() == "socks5"
+            and (proxy_config.username or proxy_config.password)
+        ):
+            bridge = Socks5Bridge(proxy_config)
+            browser_proxy = bridge.start()
+
+        backend.open_session(session, browser_config, browser_proxy, fingerprint_config)
         event_queue.put(
             {
                 "session_id": session.id,
@@ -281,7 +293,7 @@ def _run_browser_session_process(
             }
         )
         child_logger.info("Browser session started")
-        _process_session_loop(session.id, backend, command_queue, child_logger)
+        _process_session_loop(session.id, backend, command_queue, child_logger, bridge)
         event_queue.put(
             {
                 "session_id": session.id,
@@ -304,7 +316,11 @@ def _run_browser_session_process(
             }
         )
     finally:
-        backend.close_all()
+        try:
+            backend.close_all()
+        finally:
+            if bridge is not None:
+                bridge.close()
         child_logger.info("Session process exiting")
 
 
@@ -313,6 +329,7 @@ def _process_session_loop(
     backend: SeleniumBrowserBackend,
     command_queue: Any,
     child_logger: logging.Logger,
+    bridge: Socks5Bridge | None = None,
 ) -> None:
     while True:
         try:
@@ -329,6 +346,9 @@ def _process_session_loop(
             child_logger.info("Stop command received")
             backend.close_session(session_id)
             return
+
+        if bridge is not None and not bridge.is_running():
+            raise RuntimeError(_("Session SOCKS5 bridge is no longer running"))
 
         if not backend.is_session_running(session_id):
             child_logger.info("Browser session is no longer running")

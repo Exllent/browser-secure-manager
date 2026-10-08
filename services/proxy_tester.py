@@ -9,6 +9,10 @@ from dataclasses import dataclass
 
 from app_config import APP_CONFIG
 from models.proxy_config import ProxyConfig
+from services.socks5_transport import (
+    open_socks5_tunnel as _open_socks5_tunnel,
+    recv_exact as _recv_exact,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -68,69 +72,6 @@ def test_proxy(
     elapsed_ms = int((time.perf_counter() - started) * 1000)
     logger.info("Proxy test passed for %s in %s ms", proxy.display_name(), elapsed_ms)
     return ProxyTestResult(True, elapsed_ms, "ok")
-
-
-def _open_socks5_tunnel(
-    proxy: ProxyConfig,
-    *,
-    target_host: str,
-    target_port: int,
-    timeout: float,
-) -> socket.socket:
-    sock = socket.create_connection((proxy.host.strip(), proxy.port), timeout=timeout)
-    try:
-        sock.settimeout(timeout)
-        methods = [0x02, 0x00] if proxy.username or proxy.password else [0x00]
-
-        sock.sendall(bytes([0x05, len(methods), *methods]))
-        response = _recv_exact(sock, 2)
-        if response[0] != 0x05:
-            raise ValueError("server did not respond as SOCKS5")
-        if response[1] == 0xFF:
-            raise ValueError("SOCKS5 auth method rejected")
-        if response[1] == 0x02:
-            _socks5_auth(sock, proxy)
-        elif response[1] != 0x00:
-            raise ValueError(f"unsupported SOCKS5 auth method: {response[1]}")
-
-        target = target_host.encode("idna")
-        request = (
-            bytes([0x05, 0x01, 0x00, 0x03, len(target)]) + target + target_port.to_bytes(2, "big")
-        )
-        sock.sendall(request)
-        header = _recv_exact(sock, 4)
-        if header[0] != 0x05:
-            raise ValueError("invalid SOCKS5 connect response")
-        if header[1] != 0x00:
-            raise ValueError(f"SOCKS5 connect failed with code {header[1]}")
-
-        atyp = header[3]
-        if atyp == 0x01:
-            _recv_exact(sock, 4)
-        elif atyp == 0x03:
-            length = _recv_exact(sock, 1)[0]
-            _recv_exact(sock, length)
-        elif atyp == 0x04:
-            _recv_exact(sock, 16)
-        else:
-            raise ValueError(f"invalid SOCKS5 address type: {atyp}")
-        _recv_exact(sock, 2)
-        return sock
-    except Exception:
-        sock.close()
-        raise
-
-
-def _socks5_auth(sock: socket.socket, proxy: ProxyConfig) -> None:
-    username = proxy.username.encode("utf-8")
-    password = proxy.password.encode("utf-8")
-    if len(username) > 255 or len(password) > 255:
-        raise ValueError("SOCKS5 username/password is too long")
-
-    sock.sendall(bytes([0x01, len(username)]) + username + bytes([len(password)]) + password)
-    response = _recv_exact(sock, 2)
-    if response[0] != 0x01 or response[1] != 0x00:
-        raise ValueError("SOCKS5 username/password rejected")
 
 
 def _open_socks4_tunnel(
@@ -201,13 +142,3 @@ def _verify_tls(sock: socket.socket, *, server_hostname: str, timeout: float) ->
         response = tls_sock.recv(128).decode("iso-8859-1", errors="replace")
         if not response.startswith("HTTP/"):
             raise ValueError("TLS tunnel did not return a valid HTTPS response")
-
-
-def _recv_exact(sock: socket.socket, size: int) -> bytes:
-    chunks = bytearray()
-    while len(chunks) < size:
-        chunk = sock.recv(size - len(chunks))
-        if not chunk:
-            raise ValueError("connection closed by proxy")
-        chunks.extend(chunk)
-    return bytes(chunks)
